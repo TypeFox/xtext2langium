@@ -13,28 +13,31 @@ import org.apache.log4j.Logger
 import org.eclipse.xtend.lib.annotations.Accessors
 import org.eclipse.xtend.lib.annotations.Data
 import org.eclipse.xtend2.lib.StringConcatenation
+import org.eclipse.xtext.AbstractElement
 import org.eclipse.xtext.AbstractNegatedToken
 import org.eclipse.xtext.Action
 import org.eclipse.xtext.Alternatives
 import org.eclipse.xtext.Assignment
 import org.eclipse.xtext.CharacterRange
 import org.eclipse.xtext.CrossReference
+import org.eclipse.xtext.EnumLiteralDeclaration
+import org.eclipse.xtext.EnumRule
 import org.eclipse.xtext.Grammar
+import org.eclipse.xtext.GrammarUtil
 import org.eclipse.xtext.Group
 import org.eclipse.xtext.Keyword
 import org.eclipse.xtext.ParserRule
 import org.eclipse.xtext.RuleCall
 import org.eclipse.xtext.TerminalRule
 import org.eclipse.xtext.TypeRef
+import org.eclipse.xtext.UnorderedGroup
 import org.eclipse.xtext.Wildcard
 import org.eclipse.xtext.nodemodel.util.NodeModelUtils
 import org.eclipse.xtext.xtext.generator.AbstractXtextGeneratorFragment
 
 import static org.eclipse.xtext.XtextPackage.Literals.*
-import org.eclipse.xtext.UnorderedGroup
-import org.eclipse.xtext.EnumRule
-import org.eclipse.xtext.EnumLiteralDeclaration
-import org.eclipse.xtext.GrammarUtil
+import org.eclipse.xtext.ReferencedMetamodel
+import org.eclipse.xtext.GeneratedMetamodel
 
 class Xtext2LangiumFragment extends AbstractXtextGeneratorFragment {
 	static val Logger LOG = Logger.getLogger(Xtext2LangiumFragment)
@@ -67,6 +70,7 @@ class Xtext2LangiumFragment extends AbstractXtextGeneratorFragment {
 
 	dispatch def protected void processElement(Grammar grammar, TransformationContext ctx) {
 		ctx.out.append('''grammar «ctx.grammarName»''')
+		ctx.out.newLine
 		ctx.out.newLine
 		var entryRuleCreated = false
 		for (rule : grammar.rules) {
@@ -102,10 +106,15 @@ class Xtext2LangiumFragment extends AbstractXtextGeneratorFragment {
 			}
 			ctx.out.append('>')
 		}
-
+		if(rule.wildcard) {
+			ctx.out.append('*')
+		}
+		
 		// TODO returns / infers
 		if (GrammarUtil.isDatatypeRule(rule)) {
 			ctx.out.append(' returns string')
+		} else {
+			handleType(rule.type, ctx)
 		}
 		ctx.out.append(':')
 		ctx.out.newLine
@@ -160,8 +169,12 @@ class Xtext2LangiumFragment extends AbstractXtextGeneratorFragment {
 				default:
 					context.out.append(' returns string')
 			}
-		} else {
-			context.out.append(' returns string')
+		} else if(ref.metamodel instanceof ReferencedMetamodel) {
+			context.out.append(' returns ')
+			context.out.append(ref.classifier.name.idEscaper)
+		} else if(ref.metamodel instanceof GeneratedMetamodel) {
+			context.out.append(' infers ')
+			context.out.append(ref.classifier.name.idEscaper)
 		}
 	}
 
@@ -189,19 +202,26 @@ class Xtext2LangiumFragment extends AbstractXtextGeneratorFragment {
 	}
 
 	dispatch def protected void processElement(Alternatives element, TransformationContext ctx) {
-		ctx.out.append('(')
+		val withParenthesis = needsParenthasis(element)
+		if (withParenthesis)
+			ctx.out.append('(')
 		element.elements.processWithSeparator('|', ctx)
-		ctx.out.append(')')
+		if (withParenthesis)
+			ctx.out.append(')')
 		ctx.out.append(element.cardinality)
 	}
 
 	dispatch def protected void processElement(Group element, TransformationContext ctx) {
-		ctx.out.append('(')
+		val withParenthesis = needsParenthasis(element)
+		if (withParenthesis)
+			ctx.out.append('(')
 		element.elements.forEach [
 			processElement(it, ctx)
 		]
-		ctx.out.append(')')
+		if (withParenthesis)
+			ctx.out.append(')')
 		ctx.out.append(element.cardinality)
+		ctx.out.append(' ')
 	}
 
 	dispatch def protected void processElement(RuleCall element, TransformationContext ctx) {
@@ -214,9 +234,15 @@ class Xtext2LangiumFragment extends AbstractXtextGeneratorFragment {
 	}
 
 	dispatch def protected void processElement(Assignment element, TransformationContext ctx) {
+		val withParenthesis = needsParenthasis(element)
+		if (withParenthesis)
+			ctx.out.append('(')
 		ctx.out.append(element.feature.idEscaper)
 		ctx.out.append(element.operator)
 		processElement(element.terminal, ctx)
+		if (withParenthesis)
+			ctx.out.append(')')
+		ctx.out.append(element.cardinality)
 		ctx.out.append(' ')
 	}
 
@@ -245,7 +271,9 @@ class Xtext2LangiumFragment extends AbstractXtextGeneratorFragment {
 	dispatch def protected void processElement(UnorderedGroup element, TransformationContext ctx) {
 		ctx.out.newLine
 		ctx.out.append(INDENT)
-		ctx.out.append('(')
+		val withParenthesis = needsParenthasis(element)
+		if (withParenthesis)
+			ctx.out.append('(')
 		ctx.out.newLine
 		ctx.out.append(INDENT)
 		ctx.out.append(INDENT)
@@ -259,7 +287,8 @@ class Xtext2LangiumFragment extends AbstractXtextGeneratorFragment {
 
 		ctx.out.newLine
 		ctx.out.append(INDENT)
-		ctx.out.append(')')
+		if (withParenthesis)
+			ctx.out.append(')')
 		if (element.cardinality !== null) {
 			ctx.out.append(element.cardinality)
 		}
@@ -331,6 +360,18 @@ class Xtext2LangiumFragment extends AbstractXtextGeneratorFragment {
 				appender.apply(ctx.out)
 			}
 		]
+	}
+
+	protected def boolean needsParenthasis(AbstractElement element) {
+		val node = NodeModelUtils.findActualNodeFor(element)
+		if (node !== null) {
+			val text = NodeModelUtils.getTokenText(node).trim
+			return text.startsWith('(') &&
+				if(element.cardinality !== null)
+					text.charAt(text.length - 2) == ')'.charAt(0)
+				else text.endsWith(')')
+		}
+		return true
 	}
 }
 
