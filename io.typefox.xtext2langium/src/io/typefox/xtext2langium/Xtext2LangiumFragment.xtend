@@ -232,7 +232,6 @@ class Xtext2LangiumFragment extends AbstractXtextGeneratorFragment {
 		ctx.out.newLine
 		ctx.out.append(';')
 		ctx.out.newLine
-		ctx.out.newLine
 		// process enum literals as own rules
 		enumLiteralDecls.forEach[processEnumLiteral(it, generatedEnum, ctx)]
 		ctx.out.newLine
@@ -242,7 +241,15 @@ class Xtext2LangiumFragment extends AbstractXtextGeneratorFragment {
 		TransformationContext ctx) {
 		// need to qualify rule name with an Enumtype prefix because there can be conflicting literals in other enums
 		val enumLitName = '''«element.enumLiteral.EEnum.name.idEscaper»_«element.enumLiteral.name.idEscaper»'''
-		ctx.out.append('''«enumLitName» returns «isGenerated?'string':enumLitName»: '«element.enumLiteral.literal»';''')
+		ctx.out.append('''«enumLitName» returns «isGenerated?'string':enumLitName»: ''')
+		if(element.literal !== null) {
+			processElement(element.literal, ctx)
+		} else {
+			ctx.out.append(element.enumLiteral.name)
+			ctx.out.append('''«»'«element.enumLiteral.name»'«»''')
+		}
+		ctx.out.append(";")
+	
 		ctx.out.newLine
 	}
 
@@ -250,7 +257,7 @@ class Xtext2LangiumFragment extends AbstractXtextGeneratorFragment {
 		val withParenthesis = needsParenthasis(element)
 		if (withParenthesis)
 			ctx.out.append('(')
-		element.elements.processWithSeparator('|', ctx)
+		element.elements.processWithSeparator('| ', ctx)
 		if (withParenthesis)
 			ctx.out.append(')')
 		ctx.out.append(element.cardinality)
@@ -350,7 +357,6 @@ class Xtext2LangiumFragment extends AbstractXtextGeneratorFragment {
 	}
 
 	dispatch def protected void processElement(Keyword element, TransformationContext ctx) {
-		ctx.out.append(' ')
 		// TODO handle escaped values like '\n'
 		val node = NodeModelUtils.getNode(element)
 		if (node !== null) {
