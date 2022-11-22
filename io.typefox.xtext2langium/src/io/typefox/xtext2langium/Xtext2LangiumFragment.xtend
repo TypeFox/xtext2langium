@@ -11,9 +11,14 @@ import java.io.File
 import java.nio.charset.Charset
 import java.util.List
 import org.apache.log4j.Logger
+import org.eclipse.emf.common.util.URI
 import org.eclipse.emf.ecore.EClass
 import org.eclipse.emf.ecore.EClassifier
-import org.eclipse.emf.ecore.EPackage
+import org.eclipse.emf.ecore.EDataType
+import org.eclipse.emf.ecore.EEnum
+import org.eclipse.emf.ecore.EReference
+import org.eclipse.emf.ecore.EStructuralFeature
+import org.eclipse.emf.ecore.EcorePackage
 import org.eclipse.xtend.lib.annotations.Accessors
 import org.eclipse.xtend.lib.annotations.Data
 import org.eclipse.xtend2.lib.StringConcatenation
@@ -43,7 +48,6 @@ import org.eclipse.xtext.nodemodel.util.NodeModelUtils
 import org.eclipse.xtext.xtext.generator.AbstractXtextGeneratorFragment
 
 import static org.eclipse.xtext.XtextPackage.Literals.*
-import org.eclipse.emf.ecore.EReference
 
 class Xtext2LangiumFragment extends AbstractXtextGeneratorFragment {
 	static val Logger LOG = Logger.getLogger(Xtext2LangiumFragment)
@@ -72,8 +76,8 @@ class Xtext2LangiumFragment extends AbstractXtextGeneratorFragment {
 		val grammarFile = new File(outPath, xtextFile + '.langium')
 
 		val StringConcatenationClient imports = '''
-			«FOR metamodel : ctx.types.keySet»
-				import '«metamodel.cutExtension»-types'
+			«FOR metamodel : ctx.interfaces.keySet»
+				import '«metamodel.lastSegment.cutExtension»-types'
 			«ENDFOR»
 		'''
 		Files.asCharSink(grammarFile, Charset.forName('UTF-8')).write('''
@@ -89,20 +93,52 @@ class Xtext2LangiumFragment extends AbstractXtextGeneratorFragment {
 	}
 
 	protected def void generateTypes(File outPath, TransformationContext ctx) {
-		for (metamodel : ctx.types.keySet) {
-			val types = ctx.types.get(metamodel)
-			val typeFile = new File(outPath, metamodel.cutExtension + '-types.langium')
+		for (metamodel : ctx.interfaces.keySet) {
+			val typeFile = new File(outPath, metamodel.lastSegment.cutExtension + '-types.langium')
+			val isReference = [ EStructuralFeature feature |
+				return feature instanceof EReference && !(feature as EReference).isContainment &&
+					!feature.EType.isEcoreType // ecore types are handled as primitives
+			]
+			val imports = newLinkedHashSet
+			val checkImport = [ EClassifier eClass |
+				if (!eClass.isEcoreType && eClass.EPackage.eResource.URI != metamodel) {
+					imports.add(eClass.EPackage.eResource.URI.lastSegment.cutExtension)
+				}
+				return;
+			]
+			val checkImports = [ List<? extends EClassifier> types |
+				types.forEach(checkImport)
+				return types
+			]
 			val allTypes = '''
-				«FOR type : types»
-					interface «type.name.idEscaper»«IF !type.ESuperTypes.empty» extends «type.ESuperTypes.join(', ')[name.idEscaper]»«ENDIF» {
-						«FOR feature: type.EStructuralFeatures.filter[!it.transient]»
-							«feature.name.idEscaper»«IF !feature.isRequired»?«ENDIF»: «IF feature instanceof EReference && !(feature as EReference).isContainment»@«ENDIF»«langiumTypeName(feature.EType)»«IF feature.isMany»[]«ENDIF»
+				«FOR type : ctx.types.get(metamodel)»
+					«IF type instanceof EEnum»
+						type «type.name.idEscaper» = «type.ELiterals.join(' | ')['''«type.name.idEscaper»_«it.name.idEscaper»''']»;
+						«FOR literal: type.ELiterals»
+							type «type.name.idEscaper»_«literal.name.idEscaper» = '«literal.literal»';
+						«ENDFOR»
+					«ELSE»
+						type «type.name.idEscaper» = string;
+					«ENDIF»
+					
+				«ENDFOR»
+				«FOR _interface : ctx.interfaces.get(metamodel)»
+					interface «_interface.name.idEscaper»«IF !_interface.ESuperTypes.empty» extends «checkImports.apply(_interface.ESuperTypes).join(', ')[name.idEscaper]»«ENDIF» {
+						«FOR feature: _interface.EStructuralFeatures.filter[!it.transient]»
+							«checkImport.apply(feature.EType)»
+							«feature.name.idEscaper»«IF !feature.isRequired && langiumTypeName(feature.EType) != 'boolean'»?«ENDIF»: «IF isReference.apply(feature)»@«ENDIF»«langiumTypeName(feature.EType)»«IF feature.isMany»[]«ENDIF»
 						«ENDFOR»
 					}
 					
 				«ENDFOR»
 			'''
-			Files.asCharSink(typeFile, Charset.forName('UTF-8')).write(allTypes)
+			Files.asCharSink(typeFile, Charset.forName('UTF-8')).write('''
+			«FOR _import: imports»
+				import '«_import»-types'
+			«ENDFOR»
+			
+			«allTypes»
+			''')
 			LOG.info('''Generated «typeFile»''')
 		}
 	}
@@ -176,84 +212,38 @@ class Xtext2LangiumFragment extends AbstractXtextGeneratorFragment {
 		ctx.out.newLine
 	}
 
-	protected def handleType(TypeRef ref, TransformationContext context) {
-		if (ref === null) {
-			return
-		}
-		val langiumType = langiumTypeName(ref.classifier)
-		if (ref.metamodel.EPackage.name == 'ecore') {
-			context.out.append(' returns ' + langiumType)
-		} else if (ref.metamodel instanceof ReferencedMetamodel) {
-			if (ref.eContainer.eClass !== ACTION)
-				context.out.append(' returns ')
-			context.out.append(langiumType)
-			context.addType(ref)
-		} else if (ref.metamodel instanceof GeneratedMetamodel) {
-			if (ref.eContainer.eClass !== ACTION)
-				context.out.append(' infers ')
-			else
-				context.out.append(' infer ')
-			context.out.append(langiumType)
-		}
-	}
-
-	protected def langiumTypeName(EClassifier eClass) {
-		if (eClass.EPackage.name == 'ecore') {
-			// Date, bigint, boolean
-			switch (eClass.name) {
-				case 'EString':
-					return 'string'
-				case 'EByte',
-				case 'EByteObject',
-				case 'EDouble',
-				case 'EDoubleObject',
-				case 'EFloat',
-				case 'EFloatObject',
-				case 'ELong',
-				case 'ELongObject',
-				case 'EShort',
-				case 'EShortObject',
-				case 'EInt',
-				case 'EIntegerObject':
-					return 'number'
-				case 'EBigDecimal',
-				case 'EBigInteger':
-					return 'bigint'
-				case 'EBooleanObject',
-				case 'EBoolean':
-					return 'boolean'
-				case 'EDate':
-					return 'Date'
-				default:
-					return 'string'
-			}
-		}
-		return eClass.name.idEscaper
-
-	}
-
 	dispatch def protected void processElement(EnumRule element, TransformationContext ctx) {
-		ctx.out.append('''«element.name.idEscaper»:''')
+		ctx.out.append(element.name.idEscaper)
+		val generatedEnum = element.type.metamodel instanceof GeneratedMetamodel
+		if (generatedEnum) {
+			ctx.out.append(' returns string')
+		} else {
+			handleType(element.type, ctx)
+		}
+		ctx.out.append(':')
 		ctx.out.newLine
 		ctx.out.append(INDENT)
-		element.alternatives.processElement(ctx)
+		val enumLiteralDecls = if (element.alternatives instanceof EnumLiteralDeclaration) {
+				#[element.alternatives as EnumLiteralDeclaration]
+			} else if (element.alternatives instanceof Alternatives) {
+				(element.alternatives as Alternatives).elements.filter(EnumLiteralDeclaration)
+			}
+		ctx.out.append(enumLiteralDecls.join(' | ')['''«element.name.idEscaper»_«enumLiteral.name.idEscaper»'''])
 		ctx.out.newLine
 		ctx.out.append(';')
 		ctx.out.newLine
 		ctx.out.newLine
-		ctx.addType(element.type)
+		// process enum literals as own rules
+		enumLiteralDecls.forEach[processEnumLiteral(it, generatedEnum, ctx)]
+		ctx.out.newLine
 	}
 
-	dispatch def protected void processElement(EnumLiteralDeclaration element, TransformationContext ctx) {
-		ctx.out.append(element.enumLiteral.name.idEscaper)
-		ctx.out.append(' =')
-		if (element.literal !== null) {
-			element.literal.processElement(ctx)
-		} else {
-			ctx.out.append("'")
-			ctx.out.append(element.enumLiteral.name.idEscaper)
-			ctx.out.append("'")
-		}
+	def protected void processEnumLiteral(EnumLiteralDeclaration element, boolean isGenerated,
+		TransformationContext ctx) {
+		// need to qualify rule name with an Enumtype prefix because there can be conflicting literals in other enums
+		val enumLitName = '''«element.enumLiteral.EEnum.name.idEscaper»_«element.enumLiteral.name.idEscaper»'''
+		ctx.out.append('''«enumLitName» returns «isGenerated?'string':enumLitName»: '«element.enumLiteral.literal»';''')
+		ctx.out.newLine
 	}
 
 	dispatch def protected void processElement(Alternatives element, TransformationContext ctx) {
@@ -286,6 +276,9 @@ class Xtext2LangiumFragment extends AbstractXtextGeneratorFragment {
 			element.arguments.processWithSeparator(', ', ctx)
 			ctx.out.append('>')
 		}
+		if (element.cardinality !== null)
+			ctx.out.append(element.cardinality)
+		ctx.out.append(' ')
 	}
 
 	dispatch def protected void processElement(Assignment element, TransformationContext ctx) {
@@ -353,7 +346,7 @@ class Xtext2LangiumFragment extends AbstractXtextGeneratorFragment {
 
 	dispatch def protected void processElement(TypeRef element, TransformationContext ctx) {
 		ctx.out.append(element.classifier.name.idEscaper)
-		ctx.addType(element)
+		ctx.addTypeIfReferenced(element)
 	}
 
 	dispatch def protected void processElement(Keyword element, TransformationContext ctx) {
@@ -367,6 +360,8 @@ class Xtext2LangiumFragment extends AbstractXtextGeneratorFragment {
 			ctx.out.append(element.value)
 			ctx.out.append("'")
 		}
+		if (element.cardinality !== null)
+			ctx.out.append(element.cardinality)
 		ctx.out.append(' ')
 	}
 
@@ -378,6 +373,8 @@ class Xtext2LangiumFragment extends AbstractXtextGeneratorFragment {
 		processElement(element.left, ctx)
 		ctx.out.append('..')
 		processElement(element.right, ctx)
+		if (element.cardinality !== null)
+			ctx.out.append(element.cardinality)
 	}
 
 	dispatch def protected void processElement(AbstractNegatedToken element, TransformationContext ctx) {
@@ -389,6 +386,63 @@ class Xtext2LangiumFragment extends AbstractXtextGeneratorFragment {
 		processElement(element.terminal, ctx)
 	}
 
+	protected def handleType(TypeRef ref, TransformationContext context) {
+		if (ref === null) {
+			return
+		}
+		val langiumType = langiumTypeName(ref.classifier)
+		if (ref.classifier.isEcoreType) {
+			context.out.append(' returns ' + langiumType)
+		} else {
+			if (ref.metamodel instanceof ReferencedMetamodel) {
+				if (ref.eContainer.eClass !== ACTION)
+					context.out.append(' returns ')
+				context.out.append(langiumType)
+			} else if (ref.metamodel instanceof GeneratedMetamodel) {
+				if (ref.eContainer.eClass !== ACTION)
+					context.out.append(' infers ')
+				else
+					context.out.append(' infer ')
+				context.out.append(langiumType)
+			}
+			context.addTypeIfReferenced(ref)
+		}
+	}
+
+	protected def langiumTypeName(EClassifier eClass) {
+		if (eClass.isEcoreType) {
+			// Date, bigint, boolean
+			switch (eClass.name) {
+				case 'EString':
+					return 'string'
+				case 'EByte',
+				case 'EByteObject',
+				case 'EDouble',
+				case 'EDoubleObject',
+				case 'EFloat',
+				case 'EFloatObject',
+				case 'ELong',
+				case 'ELongObject',
+				case 'EShort',
+				case 'EShortObject',
+				case 'EInt',
+				case 'EIntegerObject':
+					return 'number'
+				case 'EBigDecimal',
+				case 'EBigInteger':
+					return 'bigint'
+				case 'EBooleanObject',
+				case 'EBoolean':
+					return 'boolean'
+				case 'EDate':
+					return 'Date'
+				default:
+					return 'string'
+			}
+		}
+		return eClass.name.idEscaper
+	}
+
 	protected var reservedWords = #{'Date', 'string', 'number', 'boolean', 'bigint', 'type', 'interface'}
 
 	protected def idEscaper(String id) {
@@ -397,6 +451,15 @@ class Xtext2LangiumFragment extends AbstractXtextGeneratorFragment {
 		return id
 	}
 
+	protected def boolean isEcoreType(EClassifier classifier) {
+		classifier.EPackage.nsURI == EcorePackage.eINSTANCE.nsURI
+	}
+
+	/*
+	 * 	protected def isGenerated(TransformationContext ctx, EClassifier eClassifier) {
+	 * 		return ctx.grammar.metamodelDeclarations.findFirst[it.EPackage.nsURI == eClassifier.EPackage.nsURI] instanceof GeneratedMetamodel
+	 * 	}
+	 */
 	def protected getGrammarName(TransformationContext ctx) {
 		val name = ctx.grammar.name
 		val dotIndex = name.lastIndexOf('.')
@@ -442,26 +505,38 @@ class Xtext2LangiumFragment extends AbstractXtextGeneratorFragment {
 class TransformationContext {
 	Grammar grammar
 	StringConcatenation out
-	val types = LinkedHashMultimap.<String, EClass>create
 
-	def addType(TypeRef type) {
-		doAddType(type.classifier.EPackage, type.classifier)
+	val interfaces = LinkedHashMultimap.<URI, EClass>create
+	val types = LinkedHashMultimap.<URI, EDataType>create
+
+	def void addTypeIfReferenced(TypeRef ref) {
+		if (ref.metamodel instanceof ReferencedMetamodel)
+			doAddType(ref.classifier)
 	}
 
-	protected def void doAddType(EPackage metamodel, EClassifier classifier) {
-		if (classifier instanceof EClass) {
-			if (types.containsValue(classifier))
-				return;
-			types.put(metamodel.eResource.URI.lastSegment, classifier)
-			classifier.ESuperTypes.forEach[type|
-				doAddType(type.EPackage, classifier)
-			]
-			classifier.EReferences.forEach[ref|
-				doAddType(ref.EReferenceType.EPackage, ref.EReferenceType)
-			]
-		} else {
-			println('''Not handeled «classifier.name»''')
+	protected def void doAddType(EClassifier classifier) {
+		if (classifier.EPackage.nsURI == EcorePackage.eINSTANCE.nsURI) {
+			// don't generate ecore types
+			return;
 		}
-	// ignore EDataType for now
+		if (classifier instanceof EClass) {
+			if (interfaces.containsValue(classifier))
+				return;
+			interfaces.put(classifier.EPackage.eResource.URI, classifier)
+			classifier.ESuperTypes.forEach [ type |
+				doAddType(type)
+			]
+			classifier.EReferences.forEach [ ref |
+				doAddType(ref.EReferenceType)
+			]
+			classifier.EAttributes.forEach [ attr |
+				doAddType(attr.EType)
+			]
+		} else if (classifier instanceof EDataType) {
+			types.put(classifier.EPackage.eResource.URI, classifier)
+		} else {
+			println('''Unsupported classifier: «classifier.name»''')
+		}
 	}
+
 }
