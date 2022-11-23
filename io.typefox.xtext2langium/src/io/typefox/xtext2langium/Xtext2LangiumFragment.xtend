@@ -55,6 +55,15 @@ class Xtext2LangiumFragment extends AbstractXtextGeneratorFragment {
 	@Accessors(PUBLIC_SETTER)
 	String outputPath
 
+	/**
+	 * If true, enum literal types will be prefixed with the enum type name to avoid name conflicts with other enum literals. Default is true.<br>
+	 * enum Color { RED } will create: type Color_RED = 'RED'
+	 */
+	@Accessors(PUBLIC_SETTER)
+	boolean prefixEnumLiterals = true
+	@Accessors(PUBLIC_SETTER)
+	boolean useStringAsEnumRuleType = true
+
 	static val INDENT = '    '
 
 	override generate() {
@@ -95,10 +104,6 @@ class Xtext2LangiumFragment extends AbstractXtextGeneratorFragment {
 	protected def void generateTypes(File outPath, TransformationContext ctx) {
 		for (metamodel : ctx.interfaces.keySet) {
 			val typeFile = new File(outPath, metamodel.lastSegment.cutExtension + '-types.langium')
-			val isReference = [ EStructuralFeature feature |
-				return feature instanceof EReference && !(feature as EReference).isContainment &&
-					!feature.EType.isEcoreType // ecore types are handled as primitives
-			]
 			val imports = newLinkedHashSet
 			val checkImport = [ EClassifier eClass |
 				if (!eClass.isEcoreType && eClass.EPackage.eResource.URI != metamodel) {
@@ -110,12 +115,19 @@ class Xtext2LangiumFragment extends AbstractXtextGeneratorFragment {
 				types.forEach(checkImport)
 				return types
 			]
+			val isReference = [ EStructuralFeature feature |
+				return feature instanceof EReference && !(feature as EReference).isContainment &&
+					!feature.EType.isEcoreType // ecore types are handled as primitives
+			]
+			val isOptional = [ EStructuralFeature feature |
+				return !feature.isRequired && !feature.isMany && langiumTypeName(feature.EType) != 'boolean'
+			]
 			val allTypes = '''
 				«FOR type : ctx.types.get(metamodel)»
 					«IF type instanceof EEnum»
-						type «type.name.idEscaper» = «type.ELiterals.join(' | ')['''«type.name.idEscaper»_«it.name.idEscaper»''']»;
+						type «type.name.idEscaper» = «type.ELiterals.join(' | ')['''«enumLiteralName(type.name.idEscaper, it.name.idEscaper)»''']»;
 						«FOR literal: type.ELiterals»
-							type «type.name.idEscaper»_«literal.name.idEscaper» = '«literal.literal»';
+							type «enumLiteralName(type.name.idEscaper, literal.name.idEscaper)» = '«literal.literal»';
 						«ENDFOR»
 					«ELSE»
 						type «type.name.idEscaper» = string;
@@ -126,18 +138,18 @@ class Xtext2LangiumFragment extends AbstractXtextGeneratorFragment {
 					interface «_interface.name.idEscaper»«IF !_interface.ESuperTypes.empty» extends «checkImports.apply(_interface.ESuperTypes).join(', ')[name.idEscaper]»«ENDIF» {
 						«FOR feature: _interface.EStructuralFeatures.filter[!it.transient]»
 							«checkImport.apply(feature.EType)»
-							«feature.name.idEscaper»«IF !feature.isRequired && langiumTypeName(feature.EType) != 'boolean'»?«ENDIF»: «IF isReference.apply(feature)»@«ENDIF»«langiumTypeName(feature.EType)»«IF feature.isMany»[]«ENDIF»
+							«feature.name.idEscaper»«IF isOptional.apply(feature)»?«ENDIF»: «IF isReference.apply(feature)»@«ENDIF»«langiumTypeName(feature.EType)»«IF feature.isMany»[]«ENDIF»
 						«ENDFOR»
 					}
 					
 				«ENDFOR»
 			'''
 			Files.asCharSink(typeFile, Charset.forName('UTF-8')).write('''
-			«FOR _import: imports»
-				import '«_import»-types'
-			«ENDFOR»
-			
-			«allTypes»
+				«FOR _import : imports»
+					import '«_import»-types'
+				«ENDFOR»
+				
+				«allTypes»
 			''')
 			LOG.info('''Generated «typeFile»''')
 		}
@@ -157,6 +169,7 @@ class Xtext2LangiumFragment extends AbstractXtextGeneratorFragment {
 			processElement(rule, ctx)
 		}
 	/*
+	 * TODO
 	 * for (superGrammar : grammar.usedGrammars) {
 	 * 	out.createParserRules(superGrammar, false)
 	 * }
@@ -215,7 +228,7 @@ class Xtext2LangiumFragment extends AbstractXtextGeneratorFragment {
 	dispatch def protected void processElement(EnumRule element, TransformationContext ctx) {
 		ctx.out.append(element.name.idEscaper)
 		val generatedEnum = element.type.metamodel instanceof GeneratedMetamodel
-		if (generatedEnum) {
+		if (generatedEnum || useStringAsEnumRuleType) {
 			ctx.out.append(' returns string')
 		} else {
 			handleType(element.type, ctx)
@@ -228,7 +241,9 @@ class Xtext2LangiumFragment extends AbstractXtextGeneratorFragment {
 			} else if (element.alternatives instanceof Alternatives) {
 				(element.alternatives as Alternatives).elements.filter(EnumLiteralDeclaration)
 			}
-		ctx.out.append(enumLiteralDecls.join(' | ')['''«element.name.idEscaper»_«enumLiteral.name.idEscaper»'''])
+		ctx.out.append(enumLiteralDecls.join(' | ') [
+			'''«enumLiteralName(element.name.idEscaper, enumLiteral.name.idEscaper)»'''
+		])
 		ctx.out.newLine
 		ctx.out.append(';')
 		ctx.out.newLine
@@ -240,16 +255,16 @@ class Xtext2LangiumFragment extends AbstractXtextGeneratorFragment {
 	def protected void processEnumLiteral(EnumLiteralDeclaration element, boolean isGenerated,
 		TransformationContext ctx) {
 		// need to qualify rule name with an Enumtype prefix because there can be conflicting literals in other enums
-		val enumLitName = '''«element.enumLiteral.EEnum.name.idEscaper»_«element.enumLiteral.name.idEscaper»'''
-		ctx.out.append('''«enumLitName» returns «isGenerated?'string':enumLitName»: ''')
-		if(element.literal !== null) {
+		val enumLitName = '''«enumLiteralName(element.enumLiteral.EEnum.name.idEscaper, element.enumLiteral.name.idEscaper)»'''
+		ctx.out.append('''«enumLitName» returns «(isGenerated || useStringAsEnumRuleType)?'string':enumLitName»: ''')
+		if (element.literal !== null) {
 			processElement(element.literal, ctx)
 		} else {
 			ctx.out.append(element.enumLiteral.name)
 			ctx.out.append('''«»'«element.enumLiteral.name»'«»''')
 		}
 		ctx.out.append(";")
-	
+
 		ctx.out.newLine
 	}
 
@@ -504,6 +519,12 @@ class Xtext2LangiumFragment extends AbstractXtextGeneratorFragment {
 				text.endsWith(')')
 		}
 		return true
+	}
+
+	protected def String enumLiteralName(String enumName, String literalName) {
+		if (prefixEnumLiterals)
+			return '''«enumName»_«literalName»'''
+		return literalName
 	}
 }
 
