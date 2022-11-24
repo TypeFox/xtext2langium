@@ -63,6 +63,8 @@ class Xtext2LangiumFragment extends AbstractXtextGeneratorFragment {
 	boolean prefixEnumLiterals = true
 	@Accessors(PUBLIC_SETTER)
 	boolean useStringAsEnumRuleType = true
+	@Accessors(PUBLIC_SETTER)
+	boolean generateEcoreTypes = false
 
 	static val INDENT = '    '
 
@@ -76,7 +78,7 @@ class Xtext2LangiumFragment extends AbstractXtextGeneratorFragment {
 
 	// -------------------- GRAMMAR --------------------
 	def protected void generateGrammar(Grammar grammarToGenerate) {
-		val ctx = new TransformationContext(grammarToGenerate, new StringConcatenation)
+		val ctx = new TransformationContext(grammarToGenerate, new StringConcatenation, generateEcoreTypes)
 		processElement(ctx.grammar, ctx)
 
 		val outPath = new File(outputPath)
@@ -130,7 +132,7 @@ class Xtext2LangiumFragment extends AbstractXtextGeneratorFragment {
 							type «enumLiteralName(type.name.idEscaper, literal.name.idEscaper)» = '«literal.literal»';
 						«ENDFOR»
 					«ELSE»
-						type «type.name.idEscaper» = string;
+						type «type.name.idEscaper» = «langiumTypeName(type)»;
 					«ENDIF»
 					
 				«ENDFOR»
@@ -387,7 +389,7 @@ class Xtext2LangiumFragment extends AbstractXtextGeneratorFragment {
 	}
 
 	dispatch def protected void processElement(Wildcard element, TransformationContext ctx) {
-		ctx.out.append('*')
+		ctx.out.append('.')
 	}
 
 	dispatch def protected void processElement(CharacterRange element, TransformationContext ctx) {
@@ -532,7 +534,8 @@ class Xtext2LangiumFragment extends AbstractXtextGeneratorFragment {
 class TransformationContext {
 	Grammar grammar
 	StringConcatenation out
-
+	boolean generateEcoreTypes
+	
 	val interfaces = LinkedHashMultimap.<URI, EClass>create
 	val types = LinkedHashMultimap.<URI, EDataType>create
 
@@ -542,7 +545,7 @@ class TransformationContext {
 	}
 
 	protected def void doAddType(EClassifier classifier) {
-		if (classifier.EPackage.nsURI == EcorePackage.eINSTANCE.nsURI) {
+		if (!generateEcoreTypes && classifier.EPackage.nsURI == EcorePackage.eINSTANCE.nsURI) {
 			// don't generate ecore types
 			return;
 		}
