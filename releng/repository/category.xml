@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<site>
+   <bundle id="io.typefox.xtext2langium">
+      <category name="xtext2langium"/>
+   </bundle>
+   <bundle id="io.typefox.xtext2langium.source">
+      <category name="xtext2langium"/>
+   </bundle>
+   <category-def name="xtext2langium" label="Xtext2Langium Generator Fragment">
+   </category-def>
+</site>

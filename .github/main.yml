@@ -1,0 +1,50 @@
+name: Build Xtext2Langium Fragment
+
+on:
+  push:
+    branches:
+      - "main"
+      - "dh/releng"
+    tags:
+      - "v*.*.*"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    - name: Set up JDK
+      uses: actions/setup-java@v2
+      with:
+        java-version: 11
+        distribution: adopt
+
+    # Maven build start
+    - name: Cache Maven packages
+      uses: actions/cache@v2
+      with:
+        path: ~/.m2
+        key: ${{ runner.os }}-m2-${{ hashFiles('**/pom.xml') }}
+        restore-keys: ${{ runner.os }}-m2
+    - name: Create P2 update repository
+      run: |
+        mvn clean package
+        cp releng/repository/repo-index.html releng/repository/target/repository/index.html
+    - name: Archive P2 Repository
+      uses: actions/upload-artifact@v2
+      with:
+        name: p2-update-site
+        path: |
+          releng/repository/target/repository
+        retention-days: 14
+    - name: Purge Artifacts from Cache
+      run: |
+        mvn dependency:purge-local-repository -DmanualInclude=io.typefox.xtext2langium -ntp
+    # Maven build end
+
+    - name: Publish to GH packages
+      uses: peaceiris/actions-gh-pages@v3
+      with:
+        github_token: ${{ secrets.GITHUB_TOKEN }}
+        publish_dir: releng/repository/target/repository/
+        destination_dir: download/updates/${{ github.ref_name }}
