@@ -9,6 +9,8 @@ import com.google.common.collect.LinkedHashMultimap
 import com.google.common.io.Files
 import java.io.File
 import java.nio.charset.Charset
+import java.nio.file.Path
+import java.nio.file.Paths
 import java.util.List
 import org.apache.log4j.Logger
 import org.eclipse.emf.common.util.URI
@@ -30,6 +32,7 @@ import org.eclipse.xtext.Alternatives
 import org.eclipse.xtext.Assignment
 import org.eclipse.xtext.CharacterRange
 import org.eclipse.xtext.CrossReference
+import org.eclipse.xtext.EOF
 import org.eclipse.xtext.EnumLiteralDeclaration
 import org.eclipse.xtext.EnumRule
 import org.eclipse.xtext.GeneratedMetamodel
@@ -48,6 +51,7 @@ import org.eclipse.xtext.nodemodel.util.NodeModelUtils
 import org.eclipse.xtext.xtext.generator.AbstractXtextGeneratorFragment
 
 import static org.eclipse.xtext.XtextPackage.Literals.*
+import org.eclipse.xtext.EcoreUtil2
 
 class Xtext2LangiumFragment extends AbstractXtextGeneratorFragment {
 	static val Logger LOG = Logger.getLogger(Xtext2LangiumFragment)
@@ -62,14 +66,14 @@ class Xtext2LangiumFragment extends AbstractXtextGeneratorFragment {
 	@Accessors(PUBLIC_SETTER)
 	boolean prefixEnumLiterals = true
 	@Accessors(PUBLIC_SETTER)
-	boolean useStringAsEnumRuleType = true
+	boolean useStringAsEnumRuleType = false
 	@Accessors(PUBLIC_SETTER)
 	boolean generateEcoreTypes = false
 
 	static val INDENT = '    '
 
 	override generate() {
-		if (outputPath === null || outputPath.length == 0) {
+		if (outputPath === null) {
 			LOG.error("Property 'outputPath' must be set.")
 			return
 		}
@@ -81,31 +85,36 @@ class Xtext2LangiumFragment extends AbstractXtextGeneratorFragment {
 		val ctx = new TransformationContext(grammarToGenerate, new StringConcatenation, generateEcoreTypes)
 		processElement(ctx.grammar, ctx)
 
-		val outPath = new File(outputPath)
-		outPath.mkdirs
-		val xtextFile = grammarToGenerate.eResource.URI.lastSegment.cutExtension
-		val grammarFile = new File(outPath, xtextFile + '.langium')
-
 		val StringConcatenationClient imports = '''
 			«FOR metamodel : ctx.interfaces.keySet»
 				import '«metamodel.lastSegment.cutExtension»-types'
 			«ENDFOR»
 		'''
-		Files.asCharSink(grammarFile, Charset.forName('UTF-8')).write('''
+
+		val xtextFileName = grammarToGenerate.eResource.URI.lastSegment.cutExtension
+		val writtenFile = writeToFile(Paths.get(outputPath, xtextFileName + '.langium'), '''
 			grammar «ctx.grammarName»
 			
 			«imports»
 			
 			«ctx.out»
 		''')
-		LOG.info('''Generated «grammarFile»''')
+		LOG.info('''Generated «writtenFile»''')
 
-		generateTypes(outPath, ctx)
+		generateTypes(ctx)
 	}
 
-	protected def void generateTypes(File outPath, TransformationContext ctx) {
+	protected def String writeToFile(Path path, CharSequence content) {
+		val outPath = new File(outputPath)
+		if (!outPath.exists)
+			outPath.mkdirs
+		val grammarFile = path.toFile
+		Files.asCharSink(grammarFile, Charset.forName('UTF-8')).write(content)
+		return path.fileName.toString
+	}
+
+	protected def void generateTypes(TransformationContext ctx) {
 		for (metamodel : ctx.interfaces.keySet) {
-			val typeFile = new File(outPath, metamodel.lastSegment.cutExtension + '-types.langium')
 			val imports = newLinkedHashSet
 			val checkImport = [ EClassifier eClass |
 				if (!eClass.isEcoreType && eClass.EPackage.eResource.URI != metamodel) {
@@ -146,7 +155,7 @@ class Xtext2LangiumFragment extends AbstractXtextGeneratorFragment {
 					
 				«ENDFOR»
 			'''
-			Files.asCharSink(typeFile, Charset.forName('UTF-8')).write('''
+			val typeFile = writeToFile(Path.of(outputPath, metamodel.lastSegment.cutExtension + '-types.langium'), '''
 				«FOR _import : imports»
 					import '«_import»-types'
 				«ENDFOR»
@@ -228,23 +237,34 @@ class Xtext2LangiumFragment extends AbstractXtextGeneratorFragment {
 	}
 
 	dispatch def protected void processElement(EnumRule element, TransformationContext ctx) {
-		ctx.out.append(element.name.idEscaper)
 		val generatedEnum = element.type.metamodel instanceof GeneratedMetamodel
-		if (generatedEnum || useStringAsEnumRuleType) {
-			ctx.out.append(' returns string')
+		val enumRuleName = element.name.idEscaper
+		val enumLiteralDecls = if (element.alternatives instanceof EnumLiteralDeclaration) {
+				#[element.alternatives as EnumLiteralDeclaration]
+			} else if (element.alternatives instanceof Alternatives) {
+				(element.alternatives as Alternatives).elements.filter(EnumLiteralDeclaration)
+			}
+		if (generatedEnum && !useStringAsEnumRuleType) {
+			ctx.out.append('''
+				type «enumRuleName» = «enumLiteralDecls.join(' | ')[enumLiteralString(it)]»;
+			''')
+		}
+		ctx.out.append(enumRuleName)
+		if (generatedEnum) {
+			if (useStringAsEnumRuleType)
+				ctx.out.append(' returns string')
+			else {
+				ctx.out.append(' returns ' + langiumTypeName(element.type.classifier))
+			}
 		} else {
 			handleType(element.type, ctx)
 		}
 		ctx.out.append(':')
 		ctx.out.newLine
 		ctx.out.append(INDENT)
-		val enumLiteralDecls = if (element.alternatives instanceof EnumLiteralDeclaration) {
-				#[element.alternatives as EnumLiteralDeclaration]
-			} else if (element.alternatives instanceof Alternatives) {
-				(element.alternatives as Alternatives).elements.filter(EnumLiteralDeclaration)
-			}
+
 		ctx.out.append(enumLiteralDecls.join(' | ') [
-			'''«enumLiteralName(element.name.idEscaper, enumLiteral.name.idEscaper)»'''
+			'''«enumLiteralName(enumRuleName, enumLiteral.name.idEscaper)»'''
 		])
 		ctx.out.newLine
 		ctx.out.append(';')
@@ -256,8 +276,10 @@ class Xtext2LangiumFragment extends AbstractXtextGeneratorFragment {
 
 	def protected void processEnumLiteral(EnumLiteralDeclaration element, boolean isGenerated,
 		TransformationContext ctx) {
+		val enumRuleName = (EcoreUtil2.getContainerOfType(element, EnumRule)?.name ?: element.enumLiteral.EEnum.name).
+			idEscaper
 		// need to qualify rule name with an Enumtype prefix because there can be conflicting literals in other enums
-		val enumLitName = '''«enumLiteralName(element.enumLiteral.EEnum.name.idEscaper, element.enumLiteral.name.idEscaper)»'''
+		val enumLitName = '''«enumLiteralName(enumRuleName, element.enumLiteral.name.idEscaper)»'''
 		ctx.out.append('''«enumLitName» returns «(isGenerated || useStringAsEnumRuleType)?'string':enumLitName»: ''')
 		if (element.literal !== null) {
 			processElement(element.literal, ctx)
@@ -268,6 +290,14 @@ class Xtext2LangiumFragment extends AbstractXtextGeneratorFragment {
 		ctx.out.append(";")
 
 		ctx.out.newLine
+	}
+
+	protected def String enumLiteralString(EnumLiteralDeclaration element) {
+		if (element.literal !== null) {
+			return keywordToString(element.literal)
+		} else {
+			return '''«element.enumLiteral.name»'«element.enumLiteral.name»'«»'''
+		}
 	}
 
 	dispatch def protected void processElement(Alternatives element, TransformationContext ctx) {
@@ -375,17 +405,23 @@ class Xtext2LangiumFragment extends AbstractXtextGeneratorFragment {
 
 	dispatch def protected void processElement(Keyword element, TransformationContext ctx) {
 		// TODO handle escaped values like '\n'
+		ctx.out.append(keywordToString(element))
+		ctx.out.append(' ')
+	}
+
+	protected def String keywordToString(Keyword element) {
+		val builder = new StringBuilder
 		val node = NodeModelUtils.getNode(element)
 		if (node !== null) {
-			ctx.out.append(NodeModelUtils.getTokenText(node))
+			builder.append(NodeModelUtils.getTokenText(node))
 		} else {
-			ctx.out.append("'")
-			ctx.out.append(element.value)
-			ctx.out.append("'")
+			builder.append("'")
+			builder.append(element.value)
+			builder.append("'")
 		}
 		if (element.cardinality !== null)
-			ctx.out.append(element.cardinality)
-		ctx.out.append(' ')
+			builder.append(element.cardinality)
+		return builder.toString
 	}
 
 	dispatch def protected void processElement(Wildcard element, TransformationContext ctx) {
@@ -409,10 +445,18 @@ class Xtext2LangiumFragment extends AbstractXtextGeneratorFragment {
 		processElement(element.terminal, ctx)
 	}
 
-	protected def handleType(TypeRef ref, TransformationContext context) {
+	dispatch def protected void processElement(EOF element, TransformationContext ctx) {
+		ctx.out.append('UNSUPPORTED_EOF')
+	}
+
+	protected def void handleType(TypeRef ref, TransformationContext context) {
 		if (ref === null) {
 			return
 		}
+		if (ref.classifier === null)
+			throw new IllegalStateException(
+				'''Unresolved Type reference at: «NodeModelUtils.getTokenText(NodeModelUtils.findActualNodeFor(ref.eContainer))»'''
+			)
 		val langiumType = langiumTypeName(ref.classifier)
 		if (ref.classifier.isEcoreType) {
 			context.out.append(' returns ' + langiumType)
@@ -535,7 +579,7 @@ class TransformationContext {
 	Grammar grammar
 	StringConcatenation out
 	boolean generateEcoreTypes
-	
+
 	val interfaces = LinkedHashMultimap.<URI, EClass>create
 	val types = LinkedHashMultimap.<URI, EDataType>create
 
