@@ -93,6 +93,34 @@ class Xtext2LangiumFragmentTest extends AbstractXtextTests {
 	}
 	
 
+	@Test
+	def void testParameterizedRule_01() {
+		'''
+			Model <param4>:
+				ConditionalFragment<param1 = param4, param2 = !false>
+				ConditionalFragment< true | false, !false & true>
+			;
+			
+			fragment ConditionalFragment<param1, param2>:
+				<param1 & param2 | !param1> name = 'Foo' |
+				<param2> name = 'Bar'
+			;
+		'''.assertGeneratedLangium('''
+			grammar FragmentTest
+			
+			
+			entry Model<param4> infers Model:
+			    ConditionalFragment<param1 = param4, param2 = !false> ConditionalFragment<true | false, !false & true>  
+			;
+			
+			fragment ConditionalFragment<param1, param2> infers ConditionalFragment:
+			    <param1 & param2 | !param1> name='Foo'   | <param2> name='Bar'   
+			;
+			
+		''')
+	}
+	
+
 	private def assertGeneratedLangium(CharSequence xtextGrammar, String expected) {
 		assertGeneratedLangium(xtextGrammar, expected, [])
 	}

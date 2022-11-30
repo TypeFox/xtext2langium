@@ -31,8 +31,11 @@ import org.eclipse.xtext.Action
 import org.eclipse.xtext.Alternatives
 import org.eclipse.xtext.Assignment
 import org.eclipse.xtext.CharacterRange
+import org.eclipse.xtext.Conjunction
 import org.eclipse.xtext.CrossReference
+import org.eclipse.xtext.Disjunction
 import org.eclipse.xtext.EOF
+import org.eclipse.xtext.EcoreUtil2
 import org.eclipse.xtext.EnumLiteralDeclaration
 import org.eclipse.xtext.EnumRule
 import org.eclipse.xtext.GeneratedMetamodel
@@ -40,6 +43,10 @@ import org.eclipse.xtext.Grammar
 import org.eclipse.xtext.GrammarUtil
 import org.eclipse.xtext.Group
 import org.eclipse.xtext.Keyword
+import org.eclipse.xtext.LiteralCondition
+import org.eclipse.xtext.NamedArgument
+import org.eclipse.xtext.Negation
+import org.eclipse.xtext.ParameterReference
 import org.eclipse.xtext.ParserRule
 import org.eclipse.xtext.ReferencedMetamodel
 import org.eclipse.xtext.RuleCall
@@ -51,7 +58,6 @@ import org.eclipse.xtext.nodemodel.util.NodeModelUtils
 import org.eclipse.xtext.xtext.generator.AbstractXtextGeneratorFragment
 
 import static org.eclipse.xtext.XtextPackage.Literals.*
-import org.eclipse.xtext.EcoreUtil2
 
 class Xtext2LangiumFragment extends AbstractXtextGeneratorFragment {
 	static val Logger LOG = Logger.getLogger(Xtext2LangiumFragment)
@@ -314,6 +320,11 @@ class Xtext2LangiumFragment extends AbstractXtextGeneratorFragment {
 		val withParenthesis = needsParenthasis(element)
 		if (withParenthesis)
 			ctx.out.append('(')
+		if(element.guardCondition !== null) {
+			ctx.out.append('<')
+			processElement(element.guardCondition, ctx)
+			ctx.out.append('> ')
+		}
 		element.elements.forEach [
 			processElement(it, ctx)
 		]
@@ -404,12 +415,12 @@ class Xtext2LangiumFragment extends AbstractXtextGeneratorFragment {
 	}
 
 	dispatch def protected void processElement(Keyword element, TransformationContext ctx) {
-		// TODO handle escaped values like '\n'
 		ctx.out.append(keywordToString(element))
 		ctx.out.append(' ')
 	}
 
 	protected def String keywordToString(Keyword element) {
+		// TODO handle escaped values like '\n'
 		val builder = new StringBuilder
 		val node = NodeModelUtils.getNode(element)
 		if (node !== null) {
@@ -447,6 +458,42 @@ class Xtext2LangiumFragment extends AbstractXtextGeneratorFragment {
 
 	dispatch def protected void processElement(EOF element, TransformationContext ctx) {
 		ctx.out.append('UNSUPPORTED_EOF')
+	}
+
+	dispatch def protected void processElement(NamedArgument element, TransformationContext ctx) {
+		if (element.calledByName) {
+			ctx.out.append(element.parameter.name)
+			ctx.out.append(' = ')
+		}
+		processElement(element.value, ctx)
+	}
+
+	dispatch def protected void processElement(ParameterReference element, TransformationContext ctx) {
+		ctx.out.append(element.parameter.name)
+	}
+
+	dispatch def protected void processElement(Negation element, TransformationContext ctx) {
+		ctx.out.append('!')
+		processElement(element.value, ctx)
+	}
+
+	dispatch def protected void processElement(Disjunction element, TransformationContext ctx) {
+		processElement(element.left, ctx)
+		ctx.out.append(' | ')
+		processElement(element.right, ctx)
+	}
+
+	dispatch def protected void processElement(Conjunction element, TransformationContext ctx) {
+		processElement(element.left, ctx)
+		ctx.out.append(' & ')
+		processElement(element.right, ctx)
+	}
+
+	dispatch def protected void processElement(LiteralCondition element, TransformationContext ctx) {
+		if (element.isTrue)
+			ctx.out.append('true')
+		else
+			ctx.out.append('false')
 	}
 
 	protected def void handleType(TypeRef ref, TransformationContext context) {
