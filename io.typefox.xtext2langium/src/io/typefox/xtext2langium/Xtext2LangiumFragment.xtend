@@ -83,15 +83,31 @@ class Xtext2LangiumFragment extends AbstractXtextGeneratorFragment {
 			LOG.error("Property 'outputPath' must be set.")
 			return
 		}
-		generateGrammar(grammar)
+		generateGrammar(grammar, null)
 	}
 
 	// -------------------- GRAMMAR --------------------
-	def protected void generateGrammar(Grammar grammarToGenerate) {
+	def protected void generateGrammar(Grammar grammarToGenerate, Grammar subGrammar) {
+		grammarToGenerate.usedGrammars.forEach [ superGrammar |
+			generateGrammar(superGrammar, grammarToGenerate)
+		]
 		val ctx = new TransformationContext(grammarToGenerate, new StringConcatenation, generateEcoreTypes)
-		processElement(ctx.grammar, ctx)
+		var entryRuleCreated = false
+		for (rule : grammarToGenerate.rules.filter [ rule |
+			/* Filter out rules overwritten by the sub grammar */
+			subGrammar === null || !subGrammar.rules.exists[name == rule.name]
+		]) {
+			if (rule.eClass === PARSER_RULE && !entryRuleCreated) {
+				ctx.out.append('entry ')
+				entryRuleCreated = true
+			}
+			processElement(rule, ctx)
+		}
 
 		val StringConcatenationClient imports = '''
+			«FOR otherGrammar : grammarToGenerate.usedGrammars»
+				import '«otherGrammar.eResource.URI.lastSegment.cutExtension»'
+			«ENDFOR»
 			«FOR metamodel : ctx.interfaces.keySet»
 				import '«metamodel.lastSegment.cutExtension»-types'
 			«ENDFOR»
@@ -99,8 +115,9 @@ class Xtext2LangiumFragment extends AbstractXtextGeneratorFragment {
 
 		val xtextFileName = grammarToGenerate.eResource.URI.lastSegment.cutExtension
 		val writtenFile = writeToFile(Paths.get(outputPath, xtextFileName + '.langium'), '''
+			«IF subGrammar === null»
 			grammar «ctx.grammarName»
-			
+			«ENDIF»
 			«imports»
 			
 			«ctx.out»
@@ -174,23 +191,6 @@ class Xtext2LangiumFragment extends AbstractXtextGeneratorFragment {
 
 	dispatch def protected void processElement(Object element, TransformationContext ctx) {
 		ctx.out.append('''/* «element.class.simpleName» not handeled yet. */''')
-	}
-
-	dispatch def protected void processElement(Grammar grammar, TransformationContext ctx) {
-		var entryRuleCreated = false
-		for (rule : grammar.rules) {
-			if (rule.eClass === PARSER_RULE && !entryRuleCreated) {
-				ctx.out.append('entry ')
-				entryRuleCreated = true
-			}
-			processElement(rule, ctx)
-		}
-	/*
-	 * TODO
-	 * for (superGrammar : grammar.usedGrammars) {
-	 * 	out.createParserRules(superGrammar, false)
-	 * }
-	 * */
 	}
 
 	dispatch def protected void processElement(ParserRule rule, TransformationContext ctx) {
@@ -320,7 +320,7 @@ class Xtext2LangiumFragment extends AbstractXtextGeneratorFragment {
 		val withParenthesis = needsParenthasis(element)
 		if (withParenthesis)
 			ctx.out.append('(')
-		if(element.guardCondition !== null) {
+		if (element.guardCondition !== null) {
 			ctx.out.append('<')
 			processElement(element.guardCondition, ctx)
 			ctx.out.append('> ')
