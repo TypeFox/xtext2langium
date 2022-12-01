@@ -5,27 +5,17 @@
  ******************************************************************************/
 package io.typefox.xtext2langium
 
-import com.google.common.collect.LinkedHashMultimap
-import com.google.common.io.Files
-import java.io.File
-import java.nio.charset.Charset
 import java.nio.file.Path
 import java.nio.file.Paths
 import java.util.List
 import org.apache.log4j.Logger
-import org.eclipse.emf.common.util.URI
-import org.eclipse.emf.ecore.EClass
 import org.eclipse.emf.ecore.EClassifier
-import org.eclipse.emf.ecore.EDataType
 import org.eclipse.emf.ecore.EEnum
 import org.eclipse.emf.ecore.EReference
 import org.eclipse.emf.ecore.EStructuralFeature
-import org.eclipse.emf.ecore.EcorePackage
 import org.eclipse.xtend.lib.annotations.Accessors
-import org.eclipse.xtend.lib.annotations.Data
 import org.eclipse.xtend2.lib.StringConcatenation
 import org.eclipse.xtend2.lib.StringConcatenationClient
-import org.eclipse.xtext.AbstractElement
 import org.eclipse.xtext.AbstractNegatedToken
 import org.eclipse.xtext.Action
 import org.eclipse.xtext.Alternatives
@@ -78,6 +68,12 @@ class Xtext2LangiumFragment extends AbstractXtextGeneratorFragment {
 
 	static val INDENT = '    '
 
+	extension Utils utils = createUtils()
+
+	protected def createUtils() {
+		new Utils()
+	}
+
 	override generate() {
 		if (outputPath === null) {
 			LOG.error("Property 'outputPath' must be set.")
@@ -86,7 +82,7 @@ class Xtext2LangiumFragment extends AbstractXtextGeneratorFragment {
 		generateGrammar(grammar, null)
 	}
 
-	// -------------------- GRAMMAR --------------------
+// -------------------- GRAMMAR --------------------
 	def protected void generateGrammar(Grammar grammarToGenerate, Grammar subGrammar) {
 		grammarToGenerate.usedGrammars.forEach [ superGrammar |
 			generateGrammar(superGrammar, grammarToGenerate)
@@ -116,7 +112,7 @@ class Xtext2LangiumFragment extends AbstractXtextGeneratorFragment {
 		val xtextFileName = grammarToGenerate.eResource.URI.lastSegment.cutExtension
 		val writtenFile = writeToFile(Paths.get(outputPath, xtextFileName + '.langium'), '''
 			«IF subGrammar === null»
-			grammar «ctx.grammarName»
+				grammar «ctx.grammarName»
 			«ENDIF»
 			«imports»
 			
@@ -125,15 +121,6 @@ class Xtext2LangiumFragment extends AbstractXtextGeneratorFragment {
 		LOG.info('''Generated «writtenFile»''')
 
 		generateTypes(ctx)
-	}
-
-	protected def String writeToFile(Path path, CharSequence content) {
-		val outPath = new File(outputPath)
-		if (!outPath.exists)
-			outPath.mkdirs
-		val grammarFile = path.toFile
-		Files.asCharSink(grammarFile, Charset.forName('UTF-8')).write(content)
-		return path.fileName.toString
 	}
 
 	protected def void generateTypes(TransformationContext ctx) {
@@ -298,14 +285,6 @@ class Xtext2LangiumFragment extends AbstractXtextGeneratorFragment {
 		ctx.out.newLine
 	}
 
-	protected def String enumLiteralString(EnumLiteralDeclaration element) {
-		if (element.literal !== null) {
-			return keywordToString(element.literal)
-		} else {
-			return '''«element.enumLiteral.name»'«element.enumLiteral.name»'«»'''
-		}
-	}
-
 	dispatch def protected void processElement(Alternatives element, TransformationContext ctx) {
 		val withParenthesis = needsParenthasis(element)
 		if (withParenthesis)
@@ -419,22 +398,6 @@ class Xtext2LangiumFragment extends AbstractXtextGeneratorFragment {
 		ctx.out.append(' ')
 	}
 
-	protected def String keywordToString(Keyword element) {
-		// TODO handle escaped values like '\n'
-		val builder = new StringBuilder
-		val node = NodeModelUtils.getNode(element)
-		if (node !== null) {
-			builder.append(NodeModelUtils.getTokenText(node))
-		} else {
-			builder.append("'")
-			builder.append(element.value)
-			builder.append("'")
-		}
-		if (element.cardinality !== null)
-			builder.append(element.cardinality)
-		return builder.toString
-	}
-
 	dispatch def protected void processElement(Wildcard element, TransformationContext ctx) {
 		ctx.out.append('.')
 	}
@@ -523,58 +486,7 @@ class Xtext2LangiumFragment extends AbstractXtextGeneratorFragment {
 		}
 	}
 
-	protected def langiumTypeName(EClassifier eClass) {
-		if (eClass.isEcoreType) {
-			// Date, bigint, boolean
-			switch (eClass.name) {
-				case 'EString':
-					return 'string'
-				case 'EByte',
-				case 'EByteObject',
-				case 'EDouble',
-				case 'EDoubleObject',
-				case 'EFloat',
-				case 'EFloatObject',
-				case 'ELong',
-				case 'ELongObject',
-				case 'EShort',
-				case 'EShortObject',
-				case 'EInt',
-				case 'EIntegerObject':
-					return 'number'
-				case 'EBigDecimal',
-				case 'EBigInteger':
-					return 'bigint'
-				case 'EBooleanObject',
-				case 'EBoolean':
-					return 'boolean'
-				case 'EDate':
-					return 'Date'
-				default:
-					return 'string'
-			}
-		}
-		return eClass.name.idEscaper
-	}
-
-	protected var reservedWords = #{'Date', 'string', 'number', 'boolean', 'bigint', 'type', 'interface'}
-
-	protected def idEscaper(String id) {
-		if (reservedWords.contains(id))
-			return '^' + id
-		return id
-	}
-
-	protected def boolean isEcoreType(EClassifier classifier) {
-		classifier.EPackage.nsURI == EcorePackage.eINSTANCE.nsURI
-	}
-
-	/*
-	 * 	protected def isGenerated(TransformationContext ctx, EClassifier eClassifier) {
-	 * 		return ctx.grammar.metamodelDeclarations.findFirst[it.EPackage.nsURI == eClassifier.EPackage.nsURI] instanceof GeneratedMetamodel
-	 * 	}
-	 */
-	def protected getGrammarName(TransformationContext ctx) {
+	protected def getGrammarName(TransformationContext ctx) {
 		val name = ctx.grammar.name
 		val dotIndex = name.lastIndexOf('.')
 		return name.substring(dotIndex + 1).idEscaper
@@ -595,69 +507,10 @@ class Xtext2LangiumFragment extends AbstractXtextGeneratorFragment {
 		]
 	}
 
-	protected def String cutExtension(String fileName) {
-		val lastDot = fileName.lastIndexOf('.')
-		if (lastDot > 0)
-			return fileName.substring(0, lastDot)
-		return fileName
-	}
-
-	protected def boolean needsParenthasis(AbstractElement element) {
-		val node = NodeModelUtils.findActualNodeFor(element)
-		if (node !== null) {
-			val text = NodeModelUtils.getTokenText(node).trim
-			return text.startsWith('(') && if (element.cardinality !== null)
-				text.charAt(text.length - 2) == ')'.charAt(0)
-			else
-				text.endsWith(')')
-		}
-		return true
-	}
-
 	protected def String enumLiteralName(String enumName, String literalName) {
 		if (prefixEnumLiterals)
 			return '''«enumName»_«literalName»'''
 		return literalName
-	}
-}
-
-@Data
-class TransformationContext {
-	Grammar grammar
-	StringConcatenation out
-	boolean generateEcoreTypes
-
-	val interfaces = LinkedHashMultimap.<URI, EClass>create
-	val types = LinkedHashMultimap.<URI, EDataType>create
-
-	def void addTypeIfReferenced(TypeRef ref) {
-		if (ref.metamodel instanceof ReferencedMetamodel)
-			doAddType(ref.classifier)
-	}
-
-	protected def void doAddType(EClassifier classifier) {
-		if (!generateEcoreTypes && classifier.EPackage.nsURI == EcorePackage.eINSTANCE.nsURI) {
-			// don't generate ecore types
-			return;
-		}
-		if (classifier instanceof EClass) {
-			if (interfaces.containsValue(classifier))
-				return;
-			interfaces.put(classifier.EPackage.eResource.URI, classifier)
-			classifier.ESuperTypes.forEach [ type |
-				doAddType(type)
-			]
-			classifier.EReferences.forEach [ ref |
-				doAddType(ref.EReferenceType)
-			]
-			classifier.EAttributes.forEach [ attr |
-				doAddType(attr.EType)
-			]
-		} else if (classifier instanceof EDataType) {
-			types.put(classifier.EPackage.eResource.URI, classifier)
-		} else {
-			println('''Unsupported classifier: «classifier.name»''')
-		}
 	}
 
 }

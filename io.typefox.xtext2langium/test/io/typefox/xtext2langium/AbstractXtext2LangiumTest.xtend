@@ -46,9 +46,13 @@ abstract class AbstractXtext2LangiumTest extends AbstractXtextTests {
 				resource.contents.head as Grammar
 			}
 
-			override protected writeToFile(Path path, CharSequence content) {
-				generated.put(path.fileName.toString, content.toString)
-				return path.fileName.toString
+			override protected createUtils() {
+				new Utils() {
+					override writeToFile(Path path, CharSequence content) {
+						generated.put(path.fileName.toString, content.toString)
+						return path.fileName.toString
+					}
+				}
 			}
 
 		} => [
