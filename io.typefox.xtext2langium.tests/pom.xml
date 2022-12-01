@@ -12,7 +12,7 @@
 	<artifactId>io.typefox.xtext2langium.tests</artifactId>
 
 	<!-- This is a Maven-Tycho build. See https://eclipse.org/tycho/ -->
-	<packaging>eclipse-test-plugin</packaging>
+	<packaging>eclipse-plugin</packaging>
 	<build>
 		<plugins>
 			<plugin>
