@@ -1,4 +1,4 @@
-package io.typefox.xtext2langium
+package io.typefox.xtext2langium.tests
 
 import org.junit.Test
 

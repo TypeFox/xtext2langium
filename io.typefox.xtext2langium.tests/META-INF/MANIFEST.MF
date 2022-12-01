@@ -1,0 +1,14 @@
+Manifest-Version: 1.0
+Bundle-ManifestVersion: 2
+Bundle-Name: Xtext2Langium Tests
+Bundle-SymbolicName: io.typefox.xtext2langium.tests
+Bundle-Version: 0.1.0.qualifier
+Bundle-Vendor: TypeFox GmbH
+Automatic-Module-Name: io.typefox.xtext2langium.tests
+Bundle-RequiredExecutionEnvironment: JavaSE-11
+Require-Bundle: org.eclipse.xtend.lib;bundle-version="2.25.0",
+ org.eclipse.xtext.testing;bundle-version="2.25.0",
+ org.junit;bundle-version="4.13.0",
+ org.eclipse.xtext.xtext.generator;bundle-version="2.25.0",
+ io.typefox.xtext2langium;bundle-version="0.1.0"
+

@@ -1,5 +1,7 @@
-package io.typefox.xtext2langium
+package io.typefox.xtext2langium.tests
 
+import io.typefox.xtext2langium.Utils
+import io.typefox.xtext2langium.Xtext2LangiumFragment
 import java.nio.file.Path
 import org.eclipse.xtext.Grammar
 import org.eclipse.xtext.XtextStandaloneSetup

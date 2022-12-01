@@ -61,8 +61,16 @@ class Xtext2LangiumFragment extends AbstractXtextGeneratorFragment {
 	 */
 	@Accessors(PUBLIC_SETTER)
 	boolean prefixEnumLiterals = true
+	
+	/**
+	 * If true, Enum types will be handled as strings. Only relevant for generated metamodels. Default is false.<br>
+	 */
 	@Accessors(PUBLIC_SETTER)
 	boolean useStringAsEnumRuleType = false
+	
+	/**
+	 * If true, types from ecore will also be generated. Default is false.<br>
+	 */
 	@Accessors(PUBLIC_SETTER)
 	boolean generateEcoreTypes = false
 

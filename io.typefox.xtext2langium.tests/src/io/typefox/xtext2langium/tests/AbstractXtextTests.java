@@ -1,4 +1,4 @@
-package io.typefox.xtext2langium;
+package io.typefox.xtext2langium.tests;
 
 import java.io.File;
 import java.io.IOException;
