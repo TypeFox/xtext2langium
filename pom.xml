@@ -177,6 +177,11 @@
 			<organizationUrl>http://www.typefox.io</organizationUrl>
 		</developer>
 	</developers>
+	<scm>
+		<connection>scm:git:git://github.com/TypeFox/xtext2langium.git</connection>
+		<developerConnection>scm:git:ssh://github.com:TypeFox/xtext2langium.git</developerConnection>
+		<url>http://github.com/TypeFox/xtext2langium/tree/main</url>
+	</scm>
 	<distributionManagement>
 		<snapshotRepository>
 			<id>OSSRH</id>
