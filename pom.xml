@@ -40,28 +40,6 @@
 				</executions>
 			</plugin>
 			<plugin>
-				<groupId>org.apache.maven.plugins</groupId>
-				<artifactId>maven-javadoc-plugin</artifactId>
-				<version>2.9.1</version>
-				<configuration>
-					<nohelp>true</nohelp>
-					<aggregate>true</aggregate>
-					<charset>UTF-8</charset>
-					<encoding>UTF-8</encoding>
-					<docencoding>UTF-8</docencoding>
-					<additionalparam>-Xdoclint:none</additionalparam>
-					<detectJavaApiLink>false</detectJavaApiLink>
-				</configuration>
-				<executions>
-					<execution>
-						<phase>package</phase>
-						<goals>
-							<goal>jar</goal>
-						</goals>
-					</execution>
-				</executions>
-			</plugin>
-			<plugin>
 				<groupId>org.eclipse.tycho</groupId>
 				<artifactId>tycho-p2-plugin</artifactId>
 				<version>${tycho-version}</version>
@@ -112,27 +90,6 @@
 				</configuration>
 			</plugin>
 			<plugin>
-				<groupId>org.apache.maven.plugins</groupId>
-				<artifactId>maven-gpg-plugin</artifactId>
-				<version>1.6</version>
-				<executions>
-					<execution>
-						<id>sign-artifacts</id>
-						<phase>verify</phase>
-						<goals>
-							<goal>sign</goal>
-						</goals>
-						<configuration>
-							<skip>true</skip>
-							<gpgArguments>
-								<arg>--pinentry-mode</arg>
-								<arg>loopback</arg>
-							</gpgArguments>
-						</configuration>
-					</execution>
-				</executions>
-			</plugin>
-			<plugin>
 				<artifactId>maven-deploy-plugin</artifactId>
 			</plugin>
 		</plugins>
@@ -154,13 +111,65 @@
 			</plugins>
 		</pluginManagement>
 	</build>
+	<profiles>
+		<profile>
+			<id>release</id>
+			<build>
+				<plugins>
+					<plugin>
+						<groupId>org.apache.maven.plugins</groupId>
+						<artifactId>maven-javadoc-plugin</artifactId>
+						<version>2.9.1</version>
+						<configuration>
+							<nohelp>true</nohelp>
+							<aggregate>true</aggregate>
+							<charset>UTF-8</charset>
+							<encoding>UTF-8</encoding>
+							<docencoding>UTF-8</docencoding>
+							<additionalparam>-Xdoclint:none</additionalparam>
+							<detectJavaApiLink>false</detectJavaApiLink>
+						</configuration>
+						<executions>
+							<execution>
+								<phase>package</phase>
+								<goals>
+									<goal>jar</goal>
+								</goals>
+							</execution>
+						</executions>
+					</plugin>
+					<plugin>
+						<groupId>org.apache.maven.plugins</groupId>
+						<artifactId>maven-gpg-plugin</artifactId>
+						<version>1.6</version>
+						<executions>
+							<execution>
+								<id>sign-artifacts</id>
+								<phase>verify</phase>
+								<goals>
+									<goal>sign</goal>
+								</goals>
+								<configuration>
+									<gpgArguments>
+										<arg>--pinentry-mode</arg>
+										<arg>loopback</arg>
+									</gpgArguments>
+								</configuration>
+							</execution>
+						</executions>
+					</plugin>
+				</plugins>
+			</build>
+		</profile>
+	</profiles>
+
 	<name>Xtext to Langium Generator Fragment</name>
 	<description>Provides a generator Fragment for MWE2 Workflow to convert existing Xtext Grammar to Langium.</description>
 	<url>https://github.com/TypeFox/xtext2langium</url>
 	<licenses>
 		<license>
 			<name>MIT License</name>
-			<url>http://www.opensource.org/licenses/mit-license.php</url>
+			<url>https://www.opensource.org/licenses/mit-license.php</url>
 		</license>
 	</licenses>
 	<developers>
@@ -168,19 +177,19 @@
 			<name>Dennis Huebner</name>
 			<email>dennis.huebner@typefox.io</email>
 			<organization>TypeFox GmbH</organization>
-			<organizationUrl>http://www.typefox.io</organizationUrl>
+			<organizationUrl>https://www.typefox.io</organizationUrl>
 		</developer>
 		<developer>
 			<name>Miro Spoenemann</name>
 			<email>miro.spoenemann@typefox.io</email>
 			<organization>TypeFox GmbH</organization>
-			<organizationUrl>http://www.typefox.io</organizationUrl>
+			<organizationUrl>https://www.typefox.io</organizationUrl>
 		</developer>
 	</developers>
 	<scm>
 		<connection>scm:git:git://github.com/TypeFox/xtext2langium.git</connection>
 		<developerConnection>scm:git:ssh://github.com:TypeFox/xtext2langium.git</developerConnection>
-		<url>http://github.com/TypeFox/xtext2langium/tree/main</url>
+		<url>https://github.com/TypeFox/xtext2langium/tree/main</url>
 	</scm>
 	<distributionManagement>
 		<snapshotRepository>
