@@ -30,7 +30,6 @@ import org.eclipse.xtext.EnumLiteralDeclaration
 import org.eclipse.xtext.EnumRule
 import org.eclipse.xtext.GeneratedMetamodel
 import org.eclipse.xtext.Grammar
-import org.eclipse.xtext.GrammarUtil
 import org.eclipse.xtext.Group
 import org.eclipse.xtext.Keyword
 import org.eclipse.xtext.LiteralCondition
@@ -48,6 +47,7 @@ import org.eclipse.xtext.nodemodel.util.NodeModelUtils
 import org.eclipse.xtext.xtext.generator.AbstractXtextGeneratorFragment
 
 import static org.eclipse.xtext.XtextPackage.Literals.*
+import org.eclipse.emf.ecore.EDataType
 
 class Xtext2LangiumFragment extends AbstractXtextGeneratorFragment {
 	static val Logger LOG = Logger.getLogger(Xtext2LangiumFragment)
@@ -152,6 +152,9 @@ class Xtext2LangiumFragment extends AbstractXtextGeneratorFragment {
 				return feature instanceof EReference && !(feature as EReference).isContainment &&
 					!feature.EType.isEcoreType // ecore types are handled as primitives
 			]
+			val featureType = [EClassifier type|
+				if(type instanceof EDataType && type.isEcoreType && generateEcoreTypes) type.name.idEscaper else langiumTypeName(type)
+			]
 			val isOptional = [ EStructuralFeature feature |
 				return !feature.isRequired && !feature.isMany && langiumTypeName(feature.EType) != 'boolean'
 			]
@@ -163,7 +166,7 @@ class Xtext2LangiumFragment extends AbstractXtextGeneratorFragment {
 							type «enumLiteralName(type.name.idEscaper, literal.name.idEscaper)» = '«literal.literal»';
 						«ENDFOR»
 					«ELSE»
-						type «type.name.idEscaper» = «langiumTypeName(type)»;
+						type «type.name.idEscaper» = «if(!type.isEcoreType) 'string' else langiumTypeName(type)»;
 					«ENDIF»
 					
 				«ENDFOR»
@@ -171,7 +174,7 @@ class Xtext2LangiumFragment extends AbstractXtextGeneratorFragment {
 					interface «_interface.name.idEscaper»«IF !_interface.ESuperTypes.empty» extends «checkImports.apply(_interface.ESuperTypes).join(', ')[name.idEscaper]»«ENDIF» {
 						«FOR feature: _interface.EStructuralFeatures.filter[!it.transient]»
 							«checkImport.apply(feature.EType)»
-							«feature.name.idEscaper»«IF isOptional.apply(feature)»?«ENDIF»: «IF isReference.apply(feature)»@«ENDIF»«langiumTypeName(feature.EType)»«IF feature.isMany»[]«ENDIF»
+							«feature.name.idEscaper»«IF isOptional.apply(feature)»?«ENDIF»: «IF isReference.apply(feature)»@«ENDIF»«featureType.apply(feature.EType)»«IF feature.isMany»[]«ENDIF»
 						«ENDFOR»
 					}
 					
@@ -215,12 +218,8 @@ class Xtext2LangiumFragment extends AbstractXtextGeneratorFragment {
 			ctx.out.append('*')
 		}
 
-		// TODO returns / infers
-		if (GrammarUtil.isDatatypeRule(rule)) {
-			ctx.out.append(' returns string')
-		} else {
-			handleType(rule.type, ctx)
-		}
+		handleType(rule.type, ctx)
+		
 		ctx.out.append(':')
 		ctx.out.newLine
 		ctx.out.append(INDENT)

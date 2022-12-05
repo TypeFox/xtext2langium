@@ -27,7 +27,7 @@ class TransformationContext {
 	}
 
 	def usedMetamodels() {
-		return if(!interfaces.isEmpty) interfaces.keySet else types.keySet
+		return (interfaces.keySet + types.keySet).toSet
 	}
 
 	protected def void doAddType(EClassifier classifier) {
@@ -42,10 +42,7 @@ class TransformationContext {
 			classifier.ESuperTypes.forEach [ type |
 				doAddType(type)
 			]
-			classifier.EReferences.forEach [ ref |
-				doAddType(ref.EReferenceType)
-			]
-			classifier.EAttributes.forEach [ attr |
+			classifier.EStructuralFeatures.filter[!isTransient].forEach [ attr |
 				doAddType(attr.EType)
 			]
 		} else if (classifier instanceof EDataType) {

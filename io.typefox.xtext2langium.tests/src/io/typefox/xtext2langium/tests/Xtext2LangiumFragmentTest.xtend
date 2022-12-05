@@ -134,7 +134,7 @@ class Xtext2LangiumFragmentTest extends AbstractXtext2LangiumTest {
 	}
 
 	@Test
-	def void testEcoreGeneration_on() {
+	def void testEcoreGeneration_on_01() {
 		'''
 			Model:
 				name=ID
@@ -175,6 +175,38 @@ class Xtext2LangiumFragmentTest extends AbstractXtext2LangiumTest {
 	}
 
 	@Test
+	def void testEcoreGeneration_on_02() {
+		'''
+			Model:
+				age=Number;
+			
+			Number returns ecore::EInt:
+				INT;
+			terminal INT: ('0'..'9')+;
+		'''.assertGeneratedLangium('''
+			grammar FragmentTest
+			import 'Ecore-types'
+			
+			entry Model infers Model:
+			    age=Number  
+			;
+			
+			Number returns EInt:
+			    INT 
+			;
+			
+			terminal INT returns EString:'0' ..'9' +;
+		''', [generateEcoreTypes = true])
+		assertGeneratedFile('Ecore-types.langium', '''
+			
+			type EInt = number;
+			
+			type EString = string;
+			
+		''')
+	}
+
+	@Test
 	def void testEcoreGeneration_off() {
 		'''
 			Model:
@@ -206,4 +238,28 @@ class Xtext2LangiumFragmentTest extends AbstractXtext2LangiumTest {
 		assertGeneratedFile('Ecore-types.langium', null) // no ecore types generated
 	}
 
+	@Test
+	def void testEcoreGeneration_off_02() {
+		'''
+			Model:
+				age=Number;
+			
+			Number returns ecore::EInt:
+				INT;
+			terminal INT: ('0'..'9')+;
+		'''.assertGeneratedLangium('''
+			grammar FragmentTest
+			
+			entry Model infers Model:
+			    age=Number  
+			;
+			
+			Number returns number:
+			    INT 
+			;
+			
+			terminal INT returns string:'0' ..'9' +;
+		''', [generateEcoreTypes = false])
+		assertGeneratedFile('Ecore-types.langium', null)
+	}
 }
