@@ -11,7 +11,7 @@ If you are using a predefined Ecore model (not generated), it will also be conve
 #### How to consume
 
 P2 Repository:
-https://typefox.github.io/xtext2langium/download/updates/main/
+https://typefox.github.io/xtext2langium/download/updates/v0.1.0/
 
 Maven: 
 ```xml

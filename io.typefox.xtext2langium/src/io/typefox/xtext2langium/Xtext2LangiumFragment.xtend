@@ -61,15 +61,18 @@ class Xtext2LangiumFragment extends AbstractXtextGeneratorFragment {
 	 */
 	@Accessors(PUBLIC_SETTER)
 	boolean prefixEnumLiterals = true
-	
+
 	/**
 	 * If true, Enum types will be handled as strings. Only relevant for generated metamodels. Default is false.<br>
 	 */
 	@Accessors(PUBLIC_SETTER)
 	boolean useStringAsEnumRuleType = false
-	
+
 	/**
-	 * If true, types from ecore will also be generated. Default is false.<br>
+	 * If true, types from the ecore metamodel will also be generated.<br>
+	 * If false, ecore data types will be replaced with Langium data types.
+	 * Types that are not convertable to Langium built in types will be generated as string.<br>
+	 * Default is false.<br>
 	 */
 	@Accessors(PUBLIC_SETTER)
 	boolean generateEcoreTypes = false
@@ -112,7 +115,7 @@ class Xtext2LangiumFragment extends AbstractXtextGeneratorFragment {
 			«FOR otherGrammar : grammarToGenerate.usedGrammars»
 				import '«otherGrammar.eResource.URI.lastSegment.cutExtension»'
 			«ENDFOR»
-			«FOR metamodel : ctx.interfaces.keySet»
+			«FOR metamodel : ctx.usedMetamodels»
 				import '«metamodel.lastSegment.cutExtension»-types'
 			«ENDFOR»
 		'''
@@ -132,10 +135,10 @@ class Xtext2LangiumFragment extends AbstractXtextGeneratorFragment {
 	}
 
 	protected def void generateTypes(TransformationContext ctx) {
-		for (metamodel : ctx.interfaces.keySet) {
+		for (metamodel : ctx.usedMetamodels) {
 			val imports = newLinkedHashSet
 			val checkImport = [ EClassifier eClass |
-				if (!eClass.isEcoreType && eClass.EPackage.eResource.URI != metamodel) {
+				if (eClass.EPackage.eResource.URI != metamodel && (ctx.generateEcoreTypes || !eClass.isEcoreType)) {
 					imports.add(eClass.EPackage.eResource.URI.lastSegment.cutExtension)
 				}
 				return;
@@ -475,23 +478,19 @@ class Xtext2LangiumFragment extends AbstractXtextGeneratorFragment {
 			throw new IllegalStateException(
 				'''Unresolved Type reference at: «NodeModelUtils.getTokenText(NodeModelUtils.findActualNodeFor(ref.eContainer))»'''
 			)
-		val langiumType = langiumTypeName(ref.classifier)
-		if (ref.classifier.isEcoreType) {
-			context.out.append(' returns ' + langiumType)
-		} else {
-			if (ref.metamodel instanceof ReferencedMetamodel) {
-				if (ref.eContainer.eClass !== ACTION)
-					context.out.append(' returns ')
-				context.out.append(langiumType)
-			} else if (ref.metamodel instanceof GeneratedMetamodel) {
-				if (ref.eContainer.eClass !== ACTION)
-					context.out.append(' infers ')
-				else
-					context.out.append(' infer ')
-				context.out.append(langiumType)
-			}
-			context.addTypeIfReferenced(ref)
+		if (ref.metamodel instanceof ReferencedMetamodel) {
+			if (ref.eContainer.eClass !== ACTION)
+				context.out.append(' returns ')
+			val type = if(ref.classifier.isEcoreType && generateEcoreTypes) ref.classifier.name.idEscaper else langiumTypeName(ref.classifier)
+			context.out.append(type)
+		} else if (ref.metamodel instanceof GeneratedMetamodel) {
+			if (ref.eContainer.eClass !== ACTION)
+				context.out.append(' infers ')
+			else
+				context.out.append(' infer ')
+			context.out.append(langiumTypeName(ref.classifier))
 		}
+		context.addTypeIfReferenced(ref)
 	}
 
 	protected def getGrammarName(TransformationContext ctx) {

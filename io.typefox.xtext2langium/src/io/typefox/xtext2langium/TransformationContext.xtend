@@ -26,6 +26,10 @@ class TransformationContext {
 			doAddType(ref.classifier)
 	}
 
+	def usedMetamodels() {
+		return if(!interfaces.isEmpty) interfaces.keySet else types.keySet
+	}
+
 	protected def void doAddType(EClassifier classifier) {
 		if (!generateEcoreTypes && classifier.EPackage.nsURI == EcorePackage.eINSTANCE.nsURI) {
 			// don't generate ecore types
