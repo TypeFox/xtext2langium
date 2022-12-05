@@ -56,8 +56,9 @@ class Xtext2LangiumFragment extends AbstractXtextGeneratorFragment {
 	String outputPath
 
 	/**
-	 * If true, enum literal types will be prefixed with the enum type name to avoid name conflicts with other enum literals. Default is true.<br>
-	 * enum Color { RED } will create: type Color_RED = 'RED'
+	 * If true, enum literal types will be prefixed with the enum type name to avoid name conflicts with other enum literals. Default is true.<br><br>
+	 * <code>enum Color: RED;</code> <br>will create:<br><code>Color returns Color: Color_RED;<br>
+	 * Color_RED returns string: 'RED';</code>
 	 */
 	@Accessors(PUBLIC_SETTER)
 	boolean prefixEnumLiterals = true

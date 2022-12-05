@@ -1,4 +1,9 @@
-#### Deploy locally
+#### Deploy p2 Repository
+
+Create a tag `v0.1.0` and push it. GH Action will create a p2 repository and publish it to GH Pages:
+
+`https://typefox.github.io/xtext2langium/download/updates/v0.1.0/`
+#### Maven Deploy locally
 ##### Setup your local settings.xml
 
 ```
@@ -41,3 +46,4 @@ Start deployment
 
 Check the status of the staged repository and release
 [oss.sonatype.org](https://oss.sonatype.org/index.html)
+
