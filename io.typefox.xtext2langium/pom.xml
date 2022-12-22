@@ -13,5 +13,17 @@
 
 	<!-- This is a Maven-Tycho build. See https://eclipse.org/tycho/ -->
 	<packaging>eclipse-plugin</packaging>
-	
+	<build>
+		<plugins>
+			<plugin>
+				<!-- clean  "xtend-gen" and "target" folder. -->
+				<artifactId>maven-clean-plugin</artifactId>
+			</plugin>
+			<plugin>
+				<!-- Compile Xtend files -->
+				<groupId>org.eclipse.xtend</groupId>
+				<artifactId>xtend-maven-plugin</artifactId>
+			</plugin>
+		</plugins>
+	</build>
 </project>

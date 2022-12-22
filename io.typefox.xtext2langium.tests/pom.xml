@@ -16,6 +16,15 @@
 	<build>
 		<plugins>
 			<plugin>
+				<!-- clean  "xtend-gen" and "target" folder. -->
+				<artifactId>maven-clean-plugin</artifactId>
+			</plugin>
+			<plugin>
+				<!-- Compile Xtend files -->
+				<groupId>org.eclipse.xtend</groupId>
+				<artifactId>xtend-maven-plugin</artifactId>
+			</plugin>
+			<plugin>
 				<artifactId>maven-deploy-plugin</artifactId>
 				<configuration>
 					<skip>true</skip>
