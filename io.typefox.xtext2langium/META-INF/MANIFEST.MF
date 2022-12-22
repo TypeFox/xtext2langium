@@ -2,7 +2,7 @@ Manifest-Version: 1.0
 Bundle-ManifestVersion: 2
 Bundle-Name: Xtext2Langium
 Bundle-SymbolicName: io.typefox.xtext2langium
-Bundle-Version: 0.3.0.qualifier
+Bundle-Version: 0.4.0.qualifier
 Bundle-Vendor: TypeFox GmbH
 Automatic-Module-Name: io.typefox.xtext2langium
 Bundle-RequiredExecutionEnvironment: JavaSE-11
