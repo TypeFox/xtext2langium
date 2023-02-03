@@ -2,7 +2,17 @@ package io.typefox.xtext2langium.tests
 
 import org.junit.Test
 
-class Xtext2LangiumFragmentTest extends AbstractXtext2LangiumTest {
+class Xtext2LangiumTest extends AbstractXtext2LangiumTest {
+	
+	def private addHeader(CharSequence grammar) {
+		'''
+		grammar io.typefox.xtext2langium.FragmentTest
+		generate fragmentTest 'http://FragmentTest'
+		import "http://www.eclipse.org/emf/2002/Ecore" as ecore
+		
+		«grammar»
+		'''
+	}
 
 	@Test
 	def void testEnumExtends_01() {
@@ -14,8 +24,7 @@ class Xtext2LangiumFragmentTest extends AbstractXtext2LangiumTest {
 			enum EnumType2 returns EnumType:
 				FOO="FOO2" |
 				BAR="BAR2";
-		'''.assertGeneratedLangium('''
-			grammar FragmentTest
+		'''.addHeader.assertGeneratedLangium('''
 			
 			EnumType returns string:
 			    EnumType_FOO | EnumType_BAR
@@ -43,8 +52,7 @@ class Xtext2LangiumFragmentTest extends AbstractXtext2LangiumTest {
 			enum EnumType2 returns EnumType:
 				FOO="FOO2" |
 				BAR="BAR2";
-		'''.assertGeneratedLangium('''
-			grammar FragmentTest
+		'''.addHeader.assertGeneratedLangium('''
 			
 			type EnumType = "FOO" | "BAR";
 			EnumType returns EnumType:
@@ -74,8 +82,7 @@ class Xtext2LangiumFragmentTest extends AbstractXtext2LangiumTest {
 			enum EnumType2 returns EnumType:
 				FOO="FOO2" |
 				BAR="BAR2";
-		'''.assertGeneratedLangium('''
-			grammar FragmentTest
+		'''.addHeader.assertGeneratedLangium('''
 			
 			type EnumType = "FOO" | "BAR";
 			EnumType returns EnumType:
@@ -100,8 +107,7 @@ class Xtext2LangiumFragmentTest extends AbstractXtext2LangiumTest {
 		'''
 			terminal TEXT:
 				('`' | EOF); // EOF not supported // EOF not supported
-		'''.assertGeneratedLangium('''
-			grammar FragmentTest
+		'''.addHeader.assertGeneratedLangium('''
 			
 			terminal TEXT returns string:('`' | UNSUPPORTED_EOF);
 		''')
@@ -119,7 +125,7 @@ class Xtext2LangiumFragmentTest extends AbstractXtext2LangiumTest {
 				<param1 & param2 | !param1> name = 'Foo' |
 				<param2> name = 'Bar'
 			;
-		'''.assertGeneratedLangium('''
+		'''.addHeader.assertGeneratedLangium('''
 			grammar FragmentTest
 			
 			entry Model<param4> infers Model:
@@ -151,7 +157,7 @@ class Xtext2LangiumFragmentTest extends AbstractXtext2LangiumTest {
 			@Override
 			terminal INT returns ecore::EInt:
 				('0'..'9')+;
-		'''.assertGeneratedLangium('''
+		'''.addHeader.assertGeneratedLangium('''
 			grammar FragmentTest
 			import 'Ecore-types'
 			
@@ -183,7 +189,7 @@ class Xtext2LangiumFragmentTest extends AbstractXtext2LangiumTest {
 			Number returns ecore::EInt:
 				INT;
 			terminal INT: ('0'..'9')+;
-		'''.assertGeneratedLangium('''
+		'''.addHeader.assertGeneratedLangium('''
 			grammar FragmentTest
 			import 'Ecore-types'
 			
@@ -224,7 +230,7 @@ class Xtext2LangiumFragmentTest extends AbstractXtext2LangiumTest {
 			@Override
 			terminal INT returns ecore::EInt:
 				('0'..'9')+;
-		'''.assertGeneratedLangium('''
+		'''.addHeader.assertGeneratedLangium('''
 			grammar FragmentTest
 			
 			entry Model infers Model:
@@ -247,7 +253,7 @@ class Xtext2LangiumFragmentTest extends AbstractXtext2LangiumTest {
 			Number returns ecore::EInt:
 				INT;
 			terminal INT: ('0'..'9')+;
-		'''.assertGeneratedLangium('''
+		'''.addHeader.assertGeneratedLangium('''
 			grammar FragmentTest
 			
 			entry Model infers Model:

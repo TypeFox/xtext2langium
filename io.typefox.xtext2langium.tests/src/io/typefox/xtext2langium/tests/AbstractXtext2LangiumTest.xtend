@@ -3,13 +3,14 @@ package io.typefox.xtext2langium.tests
 import io.typefox.xtext2langium.Utils
 import io.typefox.xtext2langium.Xtext2LangiumFragment
 import java.nio.file.Path
+import org.eclipse.emf.ecore.resource.Resource
 import org.eclipse.xtext.Grammar
 import org.eclipse.xtext.XtextStandaloneSetup
 
 abstract class AbstractXtext2LangiumTest extends AbstractXtextTests {
 	val generated = <String, String>newLinkedHashMap
 
-	val TEST_GRAMMAR_NAME = 'mytestmodel.langium'
+	protected val TEST_GRAMMAR_NAME = 'mytestmodel.langium'
 
 	override void setUp() throws Exception {
 		super.setUp();
@@ -23,10 +24,18 @@ abstract class AbstractXtext2LangiumTest extends AbstractXtextTests {
 
 	protected def assertGeneratedLangium(CharSequence xtextGrammar, String expected,
 		(Xtext2LangiumFragment)=>void configs) {
-		runFragment('''
-			«grammarHeader()»
-			«xtextGrammar»
-		'''.toString, configs)
+		assertGeneratedLangium(
+			getResourceFromStringAndExpect(xtextGrammar.toString, AbstractXtextTests.UNKNOWN_EXPECTATION), expected,
+			configs)
+	}
+
+	protected def assertGeneratedLangium(Resource grammarResource, String expected) {
+		assertGeneratedLangium(grammarResource, expected, [])
+	}
+
+	protected def assertGeneratedLangium(Resource grammarResource, String expected,
+		(Xtext2LangiumFragment)=>void configs) {
+		runFragment(grammarResource, configs)
 		assertGeneratedFile(TEST_GRAMMAR_NAME, expected)
 	}
 
@@ -34,18 +43,12 @@ abstract class AbstractXtext2LangiumTest extends AbstractXtextTests {
 		assertEquals(content, generated.get(fileName))
 	}
 
-	protected def String grammarHeader() '''
-		grammar io.typefox.xtext2langium.FragmentTest
-		generate fragmentTest 'http://FragmentTest'
-		import "http://www.eclipse.org/emf/2002/Ecore" as ecore
-	'''
+	protected def void runFragment(Resource grammarResource, (Xtext2LangiumFragment)=>void configs) {
 
-	protected def void runFragment(String grammar, (Xtext2LangiumFragment)=>void configs) {
-		val resource = getResourceFromStringAndExpect(grammar, AbstractXtextTests.UNKNOWN_EXPECTATION);
 		val fragment = new Xtext2LangiumFragment() {
 
 			override protected getGrammar() {
-				resource.contents.head as Grammar
+				grammarResource.contents.head as Grammar
 			}
 
 			override protected createUtils() {

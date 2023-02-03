@@ -123,7 +123,8 @@ class Xtext2LangiumFragment extends AbstractXtextGeneratorFragment {
 
 		val xtextFileName = grammarToGenerate.eResource.URI.lastSegment.cutExtension
 		val writtenFile = writeToFile(Paths.get(outputPath, xtextFileName + '.langium'), '''
-			«IF subGrammar === null»
+			««« Don't generate grammar name only if an entry parser rule exists. Otherwise Langium will complain. 
+			«IF entryRuleCreated»
 				grammar «ctx.grammarName»
 			«ENDIF»
 			«imports»
@@ -325,6 +326,9 @@ class Xtext2LangiumFragment extends AbstractXtextGeneratorFragment {
 	}
 
 	dispatch def protected void processElement(RuleCall element, TransformationContext ctx) {
+		if(element.rule === null) {
+			throw new IllegalArgumentException('''Unresolved rule in RuleCall «NodeModelUtils.getTokenText(NodeModelUtils.getNode(element))».''')
+		}
 		ctx.out.append(element.rule.name.idEscaper)
 		if (!element.arguments.empty) {
 			ctx.out.append('<')
