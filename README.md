@@ -11,19 +11,19 @@ If you are using a predefined Ecore model (not generated), it will also be conve
 #### How to consume
 
 P2 Repository:
-https://typefox.github.io/xtext2langium/download/updates/v0.3.0/
+https://typefox.github.io/xtext2langium/download/updates/v0.4.0/
 
 Maven: 
 ```xml
 <dependency>
     <groupId>io.typefox.xtext2langium</groupId>
     <artifactId>io.typefox.xtext2langium</artifactId>
-    <version>0.3.0</version>
+    <version>0.4.0</version>
 </dependency>
 ```
 
 Gradle:
-`io.typefox.xtext2langium:io.typefox.xtext2langium:0.3.0`
+`io.typefox.xtext2langium:io.typefox.xtext2langium:0.4.0`
 
 
 #### How to use
