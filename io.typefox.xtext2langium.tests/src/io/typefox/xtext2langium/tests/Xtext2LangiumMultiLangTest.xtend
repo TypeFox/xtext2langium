@@ -42,6 +42,34 @@ class Xtext2LangiumMultiLangTest extends AbstractXtext2LangiumTest {
 		''')
 		assertGeneratedFile('Terminals.langium', '''
 			
+			terminal ID returns string:'^'? ('a' ..'z' | 'A' ..'Z' | '_' )('a' ..'z' | 'A' ..'Z' | '_' | '0' ..'9' )* ;
+			terminal INT returns number:'0' ..'9' +;
+			terminal STRING returns string:'"' ('\\' . |  !('\\' | '"' ))*'"'  | "'" ('\\' . |  !('\\' | "'" ))*"'"  ;
+			hidden terminal ML_COMMENT returns string:'/*'  -> '*/'  ;
+			hidden terminal SL_COMMENT returns string:'//'  !('\n' | '\r' )('\r'? '\n' )?  ;
+			hidden terminal WS returns string:(' ' | '\t' | '\r' | '\n' )+;
+			terminal ANY_OTHER returns string:.;
+		''')
+	}
+	@Test
+	def void testTerminals_02() {
+		'''
+			grammar io.typefox.xtext2langium.Test with org.eclipse.xtext.common.Terminals
+			generate xtext2langiumTest 'http://Xtext2LangiumTest'
+			import "http://www.eclipse.org/emf/2002/Ecore" as ecore
+			
+			@Override 
+			terminal ID: '^'?('a'..'z'|'A'..'Z'|'_') ('a'..'z'|'A'..'Z'|'_'|'0'..'9')*;
+			@Override 
+			terminal INT returns ecore::EInt: ('0'..'9')+;
+		'''.assertGeneratedLangium('''
+			import 'Terminals'
+			
+			terminal ID returns string:'^'? ('a' ..'z' | 'A' ..'Z' | '_' )('a' ..'z' | 'A' ..'Z' | '_' | '0' ..'9' )* ;
+			terminal INT returns number:'0' ..'9' +;
+		''', [removeOverridenRules = true])
+		assertGeneratedFile('Terminals.langium', '''
+			
 			terminal STRING returns string:'"' ('\\' . |  !('\\' | '"' ))*'"'  | "'" ('\\' . |  !('\\' | "'" ))*"'"  ;
 			hidden terminal ML_COMMENT returns string:'/*'  -> '*/'  ;
 			hidden terminal SL_COMMENT returns string:'//'  !('\n' | '\r' )('\r'? '\n' )?  ;
@@ -85,7 +113,7 @@ class Xtext2LangiumMultiLangTest extends AbstractXtext2LangiumTest {
 			    greetings+=Greeting * 
 			;
 			
-		''')
+		''', [conf | conf.removeOverridenRules = true])
 		assertGeneratedFile('uddl.langium', '''
 			grammar Uddl
 			import 'Terminals'

@@ -71,13 +71,20 @@ class Xtext2LangiumFragment extends AbstractXtextGeneratorFragment {
 	boolean useStringAsEnumRuleType = false
 
 	/**
-	 * If true, types from the ecore metamodel will also be generated.<br>
+	 * If <code>true</code>, types from the ecore metamodel will also be generated.<br>
 	 * If false, ecore data types will be replaced with Langium data types.
 	 * Types that are not convertable to Langium built in types will be generated as string.<br>
-	 * Default is false.<br>
+	 * Default is <code>false</code>.<br>
 	 */
 	@Accessors(PUBLIC_SETTER)
 	boolean generateEcoreTypes = false
+	/**
+	 * In case a rule from the imported grammar was overriden, Langium will report a duplicate error.
+	 * If <code>true</code>, the super grammar rules will be skipped in favor of the current grammar rules.<br>
+	 * Default is <code>false</code>.<br>
+	 */
+	@Accessors(PUBLIC_SETTER)
+	boolean removeOverridenRules = false
 
 	static val INDENT = '    '
 
@@ -117,7 +124,7 @@ class Xtext2LangiumFragment extends AbstractXtextGeneratorFragment {
 		var entryRuleCreated = false
 		for (rule : grammarToGenerate.rules.filter [ rule |
 			/* Filter out rules that were overridden by the sub grammar */
-			subGrammar === null || !subGrammar.rules.exists[name == rule.name]
+			subGrammar === null || !removeOverridenRules || !subGrammar.rules.exists[name == rule.name]
 		]) {
 			if (rule.eClass === PARSER_RULE && !entryRuleCreated) {
 				ctx.out.append('entry ')
