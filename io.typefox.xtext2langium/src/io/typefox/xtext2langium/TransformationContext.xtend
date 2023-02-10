@@ -11,18 +11,20 @@ import org.eclipse.xtend2.lib.StringConcatenation
 import org.eclipse.xtext.Grammar
 import org.eclipse.xtext.ReferencedMetamodel
 import org.eclipse.xtext.TypeRef
+import java.util.Set
 
 @Data
 class TransformationContext {
 	Grammar grammar
 	StringConcatenation out
 	boolean generateEcoreTypes
-
+	Set<String> generatedMetamodels
+	
 	val interfaces = LinkedHashMultimap.<URI, EClass>create
 	val types = LinkedHashMultimap.<URI, EDataType>create
 
 	def void addTypeIfReferenced(TypeRef ref) {
-		if (ref.metamodel instanceof ReferencedMetamodel)
+		if (ref.metamodel instanceof ReferencedMetamodel && !generatedMetamodels.contains(ref.metamodel.EPackage.nsURI))
 			doAddType(ref.classifier)
 	}
 

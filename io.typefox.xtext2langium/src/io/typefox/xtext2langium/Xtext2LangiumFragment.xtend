@@ -8,8 +8,10 @@ package io.typefox.xtext2langium
 import java.nio.file.Path
 import java.nio.file.Paths
 import java.util.List
+import java.util.Set
 import org.apache.log4j.Logger
 import org.eclipse.emf.ecore.EClassifier
+import org.eclipse.emf.ecore.EDataType
 import org.eclipse.emf.ecore.EEnum
 import org.eclipse.emf.ecore.EReference
 import org.eclipse.emf.ecore.EStructuralFeature
@@ -47,7 +49,6 @@ import org.eclipse.xtext.nodemodel.util.NodeModelUtils
 import org.eclipse.xtext.xtext.generator.AbstractXtextGeneratorFragment
 
 import static org.eclipse.xtext.XtextPackage.Literals.*
-import org.eclipse.emf.ecore.EDataType
 
 class Xtext2LangiumFragment extends AbstractXtextGeneratorFragment {
 	static val Logger LOG = Logger.getLogger(Xtext2LangiumFragment)
@@ -91,18 +92,31 @@ class Xtext2LangiumFragment extends AbstractXtextGeneratorFragment {
 			LOG.error("Property 'outputPath' must be set.")
 			return
 		}
-		generateGrammar(grammar, null)
+		generateGrammar(grammar, collectMetamodelInfo(grammar, newHashSet).unmodifiableView, null)
+	}
+	
+	
+	protected def Set<String> collectMetamodelInfo(Grammar grammar, Set<String> generatedMetamodels) {
+		grammar.metamodelDeclarations.filter(GeneratedMetamodel).forEach[mm|
+			generatedMetamodels.add(mm.EPackage.nsURI)
+		]
+		grammar.usedGrammars.forEach[superGrammar|
+			collectMetamodelInfo(superGrammar, generatedMetamodels)
+		]
+		return generatedMetamodels
 	}
 
-// -------------------- GRAMMAR --------------------
-	def protected void generateGrammar(Grammar grammarToGenerate, Grammar subGrammar) {
+	/*
+	 * TODO Search all the sub Grammars for Rule overrides
+	 */
+	def protected void generateGrammar(Grammar grammarToGenerate, Set<String> generatedMetamodels, Grammar subGrammar) {
 		grammarToGenerate.usedGrammars.forEach [ superGrammar |
-			generateGrammar(superGrammar, grammarToGenerate)
+			generateGrammar(superGrammar, generatedMetamodels, grammarToGenerate)
 		]
-		val ctx = new TransformationContext(grammarToGenerate, new StringConcatenation, generateEcoreTypes)
+		val ctx = new TransformationContext(grammarToGenerate, new StringConcatenation, generateEcoreTypes, generatedMetamodels)
 		var entryRuleCreated = false
 		for (rule : grammarToGenerate.rules.filter [ rule |
-			/* Filter out rules overwritten by the sub grammar */
+			/* Filter out rules that were overridden by the sub grammar */
 			subGrammar === null || !subGrammar.rules.exists[name == rule.name]
 		]) {
 			if (rule.eClass === PARSER_RULE && !entryRuleCreated) {
@@ -153,8 +167,9 @@ class Xtext2LangiumFragment extends AbstractXtextGeneratorFragment {
 				return feature instanceof EReference && !(feature as EReference).isContainment &&
 					!feature.EType.isEcoreType // ecore types are handled as primitives
 			]
-			val featureType = [EClassifier type|
-				if(type instanceof EDataType && type.isEcoreType && generateEcoreTypes) type.name.idEscaper else langiumTypeName(type)
+			val featureType = [ EClassifier type |
+				if(type instanceof EDataType && type.isEcoreType && generateEcoreTypes) type.name.
+					idEscaper else langiumTypeName(type)
 			]
 			val isOptional = [ EStructuralFeature feature |
 				return !feature.isRequired && !feature.isMany && langiumTypeName(feature.EType) != 'boolean'
@@ -220,7 +235,7 @@ class Xtext2LangiumFragment extends AbstractXtextGeneratorFragment {
 		}
 
 		handleType(rule.type, ctx)
-		
+
 		ctx.out.append(':')
 		ctx.out.newLine
 		ctx.out.append(INDENT)
@@ -326,7 +341,7 @@ class Xtext2LangiumFragment extends AbstractXtextGeneratorFragment {
 	}
 
 	dispatch def protected void processElement(RuleCall element, TransformationContext ctx) {
-		if(element.rule === null) {
+		if (element.rule === null) {
 			throw new IllegalArgumentException('''Unresolved rule in RuleCall «NodeModelUtils.getTokenText(NodeModelUtils.getNode(element))».''')
 		}
 		ctx.out.append(element.rule.name.idEscaper)
@@ -485,7 +500,8 @@ class Xtext2LangiumFragment extends AbstractXtextGeneratorFragment {
 		if (ref.metamodel instanceof ReferencedMetamodel) {
 			if (ref.eContainer.eClass !== ACTION)
 				context.out.append(' returns ')
-			val type = if(ref.classifier.isEcoreType && generateEcoreTypes) ref.classifier.name.idEscaper else langiumTypeName(ref.classifier)
+			val type = if(ref.classifier.isEcoreType && generateEcoreTypes) ref.classifier.name.
+					idEscaper else langiumTypeName(ref.classifier)
 			context.out.append(type)
 		} else if (ref.metamodel instanceof GeneratedMetamodel) {
 			if (ref.eContainer.eClass !== ACTION)
