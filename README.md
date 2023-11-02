@@ -10,10 +10,18 @@ If you are using a predefined Ecore model (not generated), it will also be conve
 
 #### How to consume
 
-P2 Repository:
-https://typefox.github.io/xtext2langium/download/updates/v0.4.0/
+##### P2 Repository
+Add the `https://typefox.github.io/xtext2langium/download/updates/v0.4.0/` update site to your `.target` file as an additional location.
 
-Maven: 
+```xml
+<location includeAllPlatforms="false" includeConfigurePhase="false" includeMode="planner" includeSource="true" type="InstallableUnit">
+   <unit id="io.typefox.xtext2langium" version="0.0.0"/>
+   <repository location="https://typefox.github.io/xtext2langium/download/updates/v0.4.0/"/>
+</location>
+```
+
+##### Maven
+
 ```xml
 <dependency>
     <groupId>io.typefox.xtext2langium</groupId>
@@ -22,8 +30,11 @@ Maven:
 </dependency>
 ```
 
-Gradle:
-`io.typefox.xtext2langium:io.typefox.xtext2langium:0.4.0`
+##### Gradle
+
+```
+io.typefox.xtext2langium:io.typefox.xtext2langium:0.4.0
+```
 
 
 #### How to use
