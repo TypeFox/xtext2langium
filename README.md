@@ -1,6 +1,6 @@
 [![Build Xtext2Langium](https://github.com/TypeFox/xtext2langium/actions/workflows/main.yml/badge.svg)](https://github.com/TypeFox/xtext2langium/actions/workflows/main.yml)
 
-# xtext2langium
+# Convert Xtext to Langium
 
 #### Generator Fragment for MWE2 Workflow
 
